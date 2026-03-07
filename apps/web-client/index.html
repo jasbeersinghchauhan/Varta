@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Varta | Authentication</title>
+    <link rel="stylesheet" href="src/style.css" />
+  </head>
+
+  <body>
+    <main class="auth" role="main">
+
+      <!-- LOGIN -->
+      <section class="auth__panel is-active" id="js-login-panel">
+        <h1 class="auth__title">Log in to <span class="auth__brand">Varta</span></h1>
+        <p class="auth__subtitle">Stay connected with your conversations.</p>
+
+        <form class="auth__form" id="js-login-form" novalidate>
+          <div class="form-field">
+            <input
+              type="email"
+              name="email"
+              class="form-field__input"
+              placeholder="Email Address"
+              autocomplete="email"
+              maxlength="254"
+              required
+            />
+            <small class="form-field__error"></small>
+          </div>
+
+          <div class="form-field">
+            <input
+              type="password"
+              name="password"
+              class="form-field__input"
+              placeholder="Password"
+              minlength="8"
+              maxlength="14"
+              autocomplete="current-password"
+              required
+            />
+            <small class="form-field__error"></small>
+          </div>
+
+          <button type="submit" class="btn btn--primary">Log In</button>
+        </form>
+
+        <p class="auth__link">
+          <a href="#" id="js-show-forgot">Forgot password?</a>
+        </p>
+
+        <div class="auth__divider">or</div>
+
+        <button type="button" class="btn btn--secondary" id="js-show-register">
+          Create new account
+        </button>
+      </section>
+
+      <!-- REGISTER -->
+      <section class="auth__panel" id="js-register-panel">
+        <h1 class="auth__title">
+          Create your <span class="auth__brand">Varta</span> account
+        </h1>
+
+        <form class="auth__form" id="js-register-form" novalidate>
+          <div class="form-field">
+            <input
+              type="text"
+              name="full_name"
+              class="form-field__input"
+              placeholder="Full Name"
+              minlength="3"
+              maxlength="80"
+              autocomplete="name"
+              required
+            />
+            <small class="form-field__error"></small>
+          </div>
+
+          <div class="form-field">
+            <input
+              type="email"
+              name="email"
+              class="form-field__input"
+              placeholder="Email Address"
+              maxlength="254"
+              autocomplete="email"
+              required
+            />
+            <small class="form-field__error"></small>
+          </div>
+
+          <div class="form-field">
+            <input
+              type="password"
+              name="password"
+              class="form-field__input"
+              placeholder="New Password"
+              minlength="8"
+              maxlength="14"
+              autocomplete="new-password"
+              required
+            />
+            <small class="form-field__error"></small>
+          </div>
+
+          <div class="form-field">
+            <input
+              type="password"
+              name="password_confirmation"
+              class="form-field__input"
+              placeholder="Confirm Password"
+              minlength="8"
+              maxlength="14"
+              autocomplete="new-password"
+              required
+            />
+            <small class="form-field__error"></small>
+          </div>
+
+          <button type="submit" class="btn btn--secondary">Sign Up</button>
+        </form>
+
+        <p class="auth__link">
+          Already have an account?
+          <a href="#" id="js-show-login">Log In</a>
+        </p>
+      </section>
+
+      <!-- FORGOT -->
+      <section class="auth__panel" id="js-forgot-panel">
+        <h1 class="auth__title">Reset Password</h1>
+
+        <form class="auth__form" id="js-forgot-form" novalidate>
+          <div class="form-field">
+            <input
+              type="email"
+              name="email"
+              class="form-field__input"
+              placeholder="Email Address"
+              maxlength="254"
+              autocomplete="email"
+              required
+            />
+            <small class="form-field__error"></small>
+          </div>
+
+          <button type="submit" class="btn btn--primary">
+            Send Reset Link
+          </button>
+        </form>
+
+        <p class="auth__link">
+          <a href="#" id="js-back-to-login">Back to Login</a>
+        </p>
+      </section>
+
+    </main>
+
+    <script src="src/script.js" defer></script>
+  </body>
+</html>

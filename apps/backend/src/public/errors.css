@@ -1,0 +1,38 @@
+body{
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background:#111;
+  color:#fff;
+  margin:0;
+  height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.container{
+  text-align:center;
+  max-width:500px;
+}
+
+h1{
+  font-size:72px;
+  margin:0;
+}
+
+h2{
+  margin:10px 0;
+  font-weight:500;
+}
+
+p{
+  color:#aaa;
+}
+
+a{
+  color:#4da3ff;
+  text-decoration:none;
+}
+
+a:hover{
+  text-decoration:underline;
+}

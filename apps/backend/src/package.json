@@ -1,0 +1,33 @@
+{
+  "name": "@varta/backend",
+  "version": "0.1.0",
+  "description": "Secure real-time messaging and WebRTC signaling server built with Node.js, WebSocket, and MySQL (TiDB).",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node ./index.js"
+  },
+  "keywords": [
+    "nodejs",
+    "websocket",
+    "webrtc",
+    "messaging",
+    "secure-chat",
+    "mysql"
+  ],
+  "author": "Jasbeer Singh Chauhan",
+  "license": "MIT",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mysql2": "^3.18.1",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
