@@ -1,0 +1,130 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Varta</title>
+
+  <link rel="icon" type="image/svg" href="./public/varta-logo.svg" />
+
+  <link rel="stylesheet" href="src/homepage.css" />
+</head>
+
+<body>
+  <div class="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <button id="mainMenuBtn" class="icon-btn mobile-only">☰</button>
+        <div class="logo">Varta</div>
+        <button id="addContactBtn" class="icon-btn">+</button>
+      </div>
+
+      <div id="conversationList" class="conversation-list"></div>
+    </aside>
+
+    <!-- CHAT -->
+    <main class="chat">
+      <header class="chat-header">
+        <button id="backBtn" class="icon-btn mobile-only">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        <div class="chat-user" id="headerProfileBtn">
+          <img id="chatAvatar" alt="avatar" />
+
+          <div class="chat-user-info">
+            <span id="chatUsername">User Name</span>
+            <span id="chatUserEmail">User Email</span>
+          </div>
+        </div>
+
+        <div class="chat-actions">
+          <button id="audioCall" class="icon-btn">
+            <img src="public/phone.svg" alt="Phone" />
+          </button>
+
+          <button id="videoCall" class="icon-btn">
+            <img src="public/video-camera.svg" alt="Video" />
+          </button>
+
+          <button id="profileBtn" class="icon-btn">⋮</button>
+        </div>
+      </header>
+
+      <div id="messages" class="messages"></div>
+
+      <footer class="message-input">
+        <label class="file-upload">
+          <input type="file" id="fileInput" />
+          +
+        </label>
+
+        <input id="messageInput" placeholder="Type a message..." autocomplete="off" />
+
+        <button id="sendBtn">Send</button>
+      </footer>
+    </main>
+  </div>
+
+  <!-- CONTACT MENU -->
+  <div id="contactMenu" class="contact-menu hidden">
+    <button id="viewProfileOption">View Profile</button>
+
+    <button id="deleteContactOption" class="danger">Delete Contact</button>
+  </div>
+
+  <!-- ADD CONTACT MODAL -->
+  <div id="addContactModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Add Contact</h3>
+
+      <input id="contactEmail" placeholder="Enter email" />
+
+      <div class="modal-actions">
+        <button id="cancelAddContact">Cancel</button>
+
+        <button id="confirmAddContact">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROFILE MODAL -->
+  <div id="profileModal" class="modal hidden">
+    <div class="modal-content profile">
+      <img id="profileAvatar" />
+
+      <h3 id="profileName"></h3>
+
+      <p id="profileEmail"></p>
+
+      <button id="closeProfile">Close</button>
+    </div>
+  </div>
+
+  <!-- VIDEO CALL -->
+  <div id="videoModal" class="video-modal hidden">
+    <div class="video-wrapper">
+      <video id="remoteVideo" autoplay></video>
+
+      <video id="localVideo" autoplay muted></video>
+
+      <div class="call-controls">
+        <button id="muteBtn">Mute</button>
+
+        <button id="cameraBtn">Camera</button>
+
+        <button id="endCallBtn" class="end">End</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="script.js"></script>
+</body>
+
+</html>

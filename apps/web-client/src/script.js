@@ -6,8 +6,7 @@ const SECURITY_CONFIG = {
   MAX_NAME_LENGTH: 80,
 };
 
-// const SERVER_URL = "https://varta-0w6d.onrender.com";
-const SERVER_URL = "http://localhost:3000";
+const SERVER_URL = "https://varta-0w6d.onrender.com";
 
 let accessToken = sessionStorage.getItem("accessToken");
 let refreshToken = localStorage.getItem("refreshToken");
