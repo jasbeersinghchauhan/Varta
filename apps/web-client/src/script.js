@@ -1,6 +1,4 @@
-// ==============================
-// CONFIG (Single Source of Truth)
-// ==============================
+// CONFIG
 const SECURITY_CONFIG = {
   MIN_PASSWORD_LENGTH: 8,
   MAX_PASSWORD_LENGTH: 14,
@@ -8,9 +6,13 @@ const SECURITY_CONFIG = {
   MAX_NAME_LENGTH: 80,
 };
 
-// ==============================
-// DOM REFERENCES
-// ==============================
+// const SERVER_URL = "https://varta-0w6d.onrender.com";
+const SERVER_URL = "http://localhost:3000";
+
+let accessToken = sessionStorage.getItem("accessToken");
+let refreshToken = localStorage.getItem("refreshToken");
+
+// DOM
 const loginPanel = document.querySelector("#js-login-panel");
 const registerPanel = document.querySelector("#js-register-panel");
 const forgotPanel = document.querySelector("#js-forgot-panel");
@@ -23,10 +25,9 @@ const showRegisterBtn = document.querySelector("#js-show-register");
 const showLoginLink = document.querySelector("#js-show-login");
 const showForgotLink = document.querySelector("#js-show-forgot");
 const backToLoginLink = document.querySelector("#js-back-to-login");
+const btn = loginForm.querySelector("button");
 
-// ==============================
 // PANEL SWITCHING
-// ==============================
 const showPanel = (panel) => {
   [loginPanel, registerPanel, forgotPanel].forEach(p =>
     p.classList.remove("is-active")
@@ -48,14 +49,14 @@ backToLoginLink.addEventListener("click", e => {
   showPanel(loginPanel);
 });
 
-// ==============================
+
 // HELPERS
-// ==============================
-const sanitize = value => value.replace(/[<>]/g, "").trim();
+const sanitize = value => value.trim();
 
 const setError = (input, message) => {
   const errorEl = input.closest(".form-field")
     .querySelector(".form-field__error");
+
   errorEl.textContent = message;
   input.setAttribute("aria-invalid", "true");
 };
@@ -69,7 +70,7 @@ const clearError = input => {
 
 const validateEmail = email => {
   if (email.length > SECURITY_CONFIG.MAX_EMAIL_LENGTH) return false;
-  return /^[a-zA-Z][a-zA-Z0-9.]*@gmail\.com$/.test(email);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 };
 
 const validatePassword = password => {
@@ -105,10 +106,139 @@ const validatePassword = password => {
   };
 };
 
-// ==============================
-// LOGIN
-// ==============================
-loginForm.addEventListener("submit", e => {
+const refreshAccessToken = async () => {
+  if (!refreshToken) {
+    throw new Error("No refresh token available");
+  }
+
+  let response;
+  try {
+    response = await fetch(`${SERVER_URL}/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        refreshToken
+      })
+    });
+  } catch {
+    throw new Error("Network error");
+  }
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error("Session expired");
+  }
+
+  accessToken = data.accessToken;
+  sessionStorage.setItem("accessToken", accessToken);
+  refreshToken = data.refreshToken;
+  localStorage.setItem("refreshToken", refreshToken);
+  return accessToken;
+};
+
+//LOGOUT
+const logout = () => {
+  accessToken = null;
+  refreshToken = null;
+
+  sessionStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
+
+  window.location.href = "/index.html";
+};
+
+const restoreSession = async () => {
+  if (!accessToken && refreshToken) {
+    try {
+      await refreshAccessToken();
+    } catch {
+      logout();
+    }
+  }
+};
+
+restoreSession();
+
+//API HELPER
+const apiRequest = async (endpoint, method, body = null, retry = true) => {
+  const options = {
+    method,
+    headers: {
+      "Content-Type": "application/json"
+    }
+  };
+
+  if (accessToken) {
+    options.headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  if (body) {
+    options.body = JSON.stringify(body);
+  }
+
+  let response;
+  try {
+  response = await fetch(`${SERVER_URL}${endpoint}`, options);
+  } catch {
+    throw new Error("Network error. Please check your connection.")
+  }
+
+  if (response.status == 401 && retry) {
+    try {
+      await refreshAccessToken();
+      return apiRequest(endpoint, method, body, false);
+    } catch {
+      logout();
+      throw new Error("Session expired. Please login again.");
+    }
+  }
+
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
+
+  if (!response.ok) {
+    throw new Error(data.message || "Server error");
+  }
+
+  return data;
+};
+
+//LOGIN API
+const login = async (email, password) => {
+  const data = await apiRequest("/login", "POST", {
+    email,
+    password
+  });
+
+  accessToken = data.accessToken;
+  refreshToken = data.refreshToken;
+
+  sessionStorage.setItem("accessToken", accessToken);
+
+  if (data.refreshToken) {
+    localStorage.setItem("refreshToken", data.refreshToken);
+  }
+  return data;
+};
+
+// REGISTER API
+const register = async (username, email, password) => {
+  return apiRequest("/register", "POST", {
+    username,
+    email,
+    password
+  });
+};
+
+// LOGIN FORM
+loginForm.addEventListener("submit", async e => {
   e.preventDefault();
 
   const email = loginForm.email;
@@ -117,7 +247,7 @@ loginForm.addEventListener("submit", e => {
   clearError(email);
   clearError(password);
 
-  const cleanEmail = sanitize(email.value);
+  const cleanEmail = sanitize(email.value).toLowerCase();
   const cleanPassword = password.value;
 
   let isValid = true;
@@ -135,42 +265,29 @@ loginForm.addEventListener("submit", e => {
     isValid = false;
   }
 
-  if (!isValid) return;
+  if (!isValid){
+    return;
+  }
 
-  alert("Login request ready for backend.");
+  btn.disabled = true;
+  
+  try {
+    await login(cleanEmail, cleanPassword);
+
+    alert("Login successful");
+    window.location.href = "/homepage.html";
+  } catch (err) {
+    setError(password, err.message);
+  } finally {
+    btn.disabled = false;
+  }
 });
 
-// ==============================
-// REGISTER
-// ==============================
-
-const register = async (userName, userEmail, userPassword) => {
-  try {
-      const response = await fetch('http://localhost:5000/register', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({userName, userEmail, userPassword})
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || `Registration failed`);
-    }
-    console.log('Registration Success:', data);
-    return data;
-  }
-  catch(error) {
-    console.log(`Registration Error: `, error.message);
-    throw error;
-  }
-  
-}
-
+//REGISTER FORM
 registerForm.addEventListener("submit", async e => {
   e.preventDefault();
 
-  const fullName = registerForm.full_name;
+  const fullName = registerForm.username;
   const email = registerForm.email;
   const password = registerForm.password;
   const confirm = registerForm.password_confirmation;
@@ -213,15 +330,18 @@ registerForm.addEventListener("submit", async e => {
 
   if (!isValid) return;
 
-  await register(cleanName, cleanEmail, cleanPassword);
-  alert("Registration successful");
-  showPanel(loginPanel);
+  try {
+    await register(cleanName, cleanEmail, cleanPassword);
+    alert("Registration successful");
+    showPanel(loginPanel);
+  } catch (err) {
+    setError(email, err.message);
+  }
 });
 
-// ==============================
+
 // FORGOT PASSWORD
-// ==============================
-forgotForm.addEventListener("submit", e => {
+forgotForm.addEventListener("submit", async e => {
   e.preventDefault();
 
   const email = forgotForm.email;
@@ -230,16 +350,23 @@ forgotForm.addEventListener("submit", e => {
   const cleanEmail = sanitize(email.value).toLowerCase();
 
   if (!validateEmail(cleanEmail)) {
-    setError(email, "Invalid email address.");
+    setError(email, "Invalid email.");
     return;
   }
 
-  alert("Password reset request ready for backend.");
+  try {
+    await apiRequest("/forgot-password", "POST", {
+      email: cleanEmail
+    });
+    alert("Password reset link sent.");
+    showPanel(loginPanel);
+  } catch (err) {
+    setError(email, err.message);
+  }
 });
 
-// ==============================
+
 // REAL-TIME PASSWORD CHECK
-// ==============================
 registerForm.password.addEventListener("input", () => {
   const result = validatePassword(registerForm.password.value);
 

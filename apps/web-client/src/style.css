@@ -1,31 +1,18 @@
-/* =========================
-   ROOT VARIABLES
-========================= */
-
 :root {
   --bg: #f0f2f5;
-
   --card-bg: #ffffff;
   --border: #e2e8f0;
-
   --text-primary: #111827;
   --text-secondary: #475569;
-
   --primary: #1877f2;
   --primary-dark: #145dbf;
-
   --secondary: #22c55e;
   --secondary-dark: #16a34a;
-
   --input-bg: #f8fafc;
-
   --shadow: rgba(0, 0, 0, 0.15);
 }
 
-
-/* =========================
-   RESET
-========================= */
+/* RESET */
 
 * {
   margin: 0;
@@ -33,10 +20,7 @@
   box-sizing: border-box;
 }
 
-
-/* =========================
-   BODY
-========================= */
+/* BODY */
 
 body {
   min-height: 100vh;
@@ -48,34 +32,24 @@ body {
   background: var(--bg);
 }
 
-
-/* =========================
-   AUTH WRAPPER
-========================= */
+/* AUTH WRAPPER */
 
 .auth {
   width: 420px;
   display: grid;
 }
 
-
-/* =========================
-   PANELS
-========================= */
+/* PANELS */
 
 .auth__panel {
   grid-area: 1 / 1;
-
   background: var(--card-bg);
   padding: 2.8rem;
   border-radius: 14px;
-
   box-shadow: 0 10px 30px var(--shadow);
-
   opacity: 0;
   transform: translateY(20px);
   pointer-events: none;
-
   transition: all 0.4s ease;
 }
 
@@ -85,10 +59,7 @@ body {
   pointer-events: auto;
 }
 
-
-/* =========================
-   HEADINGS
-========================= */
+/* HEADINGS */
 
 .auth__title {
   font-size: 1.9rem;
@@ -109,10 +80,7 @@ body {
   margin-bottom: 1.8rem;
 }
 
-
-/* =========================
-   FORM FIELDS
-========================= */
+/* FORM FIELDS */
 
 .form-field {
   margin-bottom: 1rem;
@@ -121,13 +89,11 @@ body {
 .form-field__input {
   width: 100%;
   padding: 14px 16px;
-
   border-radius: 8px;
   border: 1px solid var(--border);
-
+  box-shadow:0 0 0 2px rgba(24,119,242,.1);
   background: var(--input-bg);
   font-size: 0.95rem;
-
   transition: 0.2s ease;
 }
 
@@ -141,41 +107,33 @@ body {
   border-color: red;
 }
 
-
-/* =========================
-   ERROR MESSAGE
-========================= */
+/* ERROR MESSAGE */
 
 .form-field__error {
   display: block;
   font-size: 0.8rem;
   color: red;
   margin-top: 6px;
-  min-height: 14px; /* prevents layout shift */
+  min-height: 14px;
 }
 
-
-/* =========================
-   BUTTONS
-========================= */
+/* BUTTONS */
 
 .btn {
   width: 100%;
   padding: 14px;
-
   border: none;
   border-radius: 8px;
-
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-
   transition: 0.25s ease;
 }
 
 .btn--primary {
   background: var(--primary);
   color: white;
+  box-shadow:0 1px 2px rgba(0,0,0,.15);
 }
 
 .btn--primary:hover {
@@ -191,10 +149,7 @@ body {
   background: var(--secondary-dark);
 }
 
-
-/* =========================
-   LINKS
-========================= */
+/* LINKS */
 
 .auth__link {
   margin-top: 1rem;
@@ -212,10 +167,7 @@ body {
   text-decoration: underline;
 }
 
-
-/* =========================
-   DIVIDER
-========================= */
+/* DIVIDER */
 
 .auth__divider {
   margin: 1.6rem 0;

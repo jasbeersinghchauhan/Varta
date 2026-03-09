@@ -1,4 +1,4 @@
-import { query } from "./database/pool.js";
+import { query, pool } from "./database/pool.js";
 import bcrypt from "bcrypt";
 import fs from "fs/promises";
 
@@ -42,6 +42,8 @@ async function handlePOST(req, res, url) {
       req.on("data", (chunk) => (body += chunk));
 
       req.on("end", async () => {
+        const connection = await pool.getConnection();
+
         try {
           if (!body) return await sendError(res, 400);
 
@@ -52,33 +54,41 @@ async function handlePOST(req, res, url) {
             return sendError(res, 400);
           }
 
-          const { user_name, user_email, user_password } = data;
+          const { username, email, password } = data;
 
-          if (!user_name || !user_email || !user_password) {
+          if (!username || !email || !password) {
             await sendError(res, 400);
             return;
           }
 
-          const hash = await bcrypt.hash(user_password, 10);
+          const salt = 10;
+          const passwordHash = await bcrypt.hash(password, salt);
 
-          const result = await query("INSERT INTO users (full_name, email) VALUES (?, ?)", [
-            user_name,
-            user_email,
-          ]);
+          await connection.beginTransaction();
 
+          await query("INSERT INTO users (username, email) VALUES (?, ?)", [
+            username, email], connection);
+
+          const rows = await query("SELECT id FROM users WHERE email = ?", [email], connection);
+          const userId = rows[0].id;
+
+          await query("INSERT INTO user_auth_providers (user_id, provider_type, password_hash) VALUES (?, 'password', ?)", 
+            [userId, passwordHash], connection);
+
+          await connection.commit();
+          
           res.writeHead(201, { "Content-Type": "application/json" });
-          res.end(
-            JSON.stringify({
-              message: "User created",
-              affectedRows: result.affectedRows,
-            }),
-          );
+          res.end(JSON.stringify({message: "User created"}));
         } catch (err) {
+          await connection.rollback();
+
           if (err.code === "ER_DUP_ENTRY") {
             res.writeHead(409, { "Content-Type": "application/json" });
             return res.end(JSON.stringify({ message: "Email already exists" }));
           }
           await sendError(res, 500);
+        } finally {
+          connection.release();
         }
       });
       return;

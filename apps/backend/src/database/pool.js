@@ -33,7 +33,8 @@ export async function initializeDatabase() {
   await pool.query("SELECT 1");
 }
 
-export async function query(sql, params = []) {
-  const [rows] = await pool.execute(sql, params);
+export async function query(sql, params = [], connection = null) {
+  const executor = connection || pool;
+  const [rows] = await executor.execute(sql, params);
   return rows;
 }
