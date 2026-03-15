@@ -119,7 +119,6 @@ export async function loginUser(email, password) {
             [tokenId, user.user_id, tokenHash],
             connection,
         );
-        connection.release();
         return { accessToken, refreshToken };
     } finally {
         connection.release();
