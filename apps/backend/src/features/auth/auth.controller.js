@@ -1,4 +1,4 @@
-import { refreshSession, registerUser, loginUser, logout as logoutService } from "./auth.service.js";
+import { refreshSession, registerUser, loginUser, logoutUser as logoutService } from "./auth.service.js";
 import { validateRegister } from "../../middleware/validation.middleware.js";
 import { sendError } from "../../utils/http.utils.js"
 
