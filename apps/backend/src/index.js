@@ -1,6 +1,7 @@
 import "./config/env.js";
 import { initializeDatabase } from "./database/pool.js";
 import { requestHandler } from "./app.js";
+import { cleanupExpiredTokens } from "./utils/cleanup.utils.js";
 import http from "node:http";
 
 const PORT = process.env.PORT || 3000;
@@ -9,6 +10,10 @@ async function startServer() {
   try {
     await initializeDatabase();
     console.log("Database connection established.");
+
+    setInterval(() => {
+      cleanupExpiredTokens().catch(err => console.error("Cleanup failed: ", err));
+    });
   } catch (err) {
     console.error("Database initialization failed: ", err.message);
     process.exit(1);

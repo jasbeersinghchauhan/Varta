@@ -125,11 +125,11 @@ const refreshAccessToken = async () => {
     throw new Error("Network error");
   }
 
-  const data = await response.json();
-
   if (!response.ok) {
     throw new Error("Session expired");
   }
+
+  const data = await response.json();
 
   accessToken = data.accessToken;
   sessionStorage.setItem("accessToken", accessToken);
@@ -139,7 +139,22 @@ const refreshAccessToken = async () => {
 };
 
 //LOGOUT
-const logout = () => {
+const logout = async () => {
+  if (refreshToken) {
+    try {
+      await fetch(`${SERVER_URL}/logout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({ refreshToken })
+      });
+    } catch (err) {
+      console.error("Logout failed: ", err);
+    }
+  }
+
   accessToken = null;
   refreshToken = null;
 
@@ -150,11 +165,14 @@ const logout = () => {
 };
 
 const restoreSession = async () => {
-  if (!accessToken && refreshToken) {
+  if (accessToken || refreshToken) {
     try {
-      await refreshAccessToken();
+      if (!accessToken)
+        await refreshAccessToken();
+
+      window.location.href = "/homepage.html";
     } catch {
-      logout();
+      await logout();
     }
   }
 };
@@ -180,17 +198,18 @@ const apiRequest = async (endpoint, method, body = null, retry = true) => {
 
   let response;
   try {
-  response = await fetch(`${SERVER_URL}${endpoint}`, options);
+    response = await fetch(`${SERVER_URL}${endpoint}`, options);
   } catch {
     throw new Error("Network error. Please check your connection.")
   }
 
-  if (response.status == 401 && retry) {
+  const isAuthRoute = ["/login", "/register"].includes(endpoint);
+  if (response.status == 401 && retry && !isAuthRoute) {
     try {
       await refreshAccessToken();
       return apiRequest(endpoint, method, body, false);
     } catch {
-      logout();
+      await logout();
       throw new Error("Session expired. Please login again.");
     }
   }
@@ -264,12 +283,12 @@ loginForm.addEventListener("submit", async e => {
     isValid = false;
   }
 
-  if (!isValid){
+  if (!isValid) {
     return;
   }
 
   btn.disabled = true;
-  
+
   try {
     await login(cleanEmail, cleanPassword);
 
