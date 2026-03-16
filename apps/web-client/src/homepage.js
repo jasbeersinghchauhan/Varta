@@ -33,4 +33,3 @@ const deleteContactOption = document.querySelector("#deleteContactOption");
 const contactEmail = document.querySelector("#contactEmail");
 const cancelAddContact = document.querySelector("#cancelAddContact");
 const confirmAddContact = document.querySelector("#confirmAddContact");
-

@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Varta</title>
 
-  <link rel="icon" type="image/svg" href="./public/varta-logo.svg" />
+  <link rel="icon" type="image/svg" href="/varta-logo.svg" />
 
   <link rel="stylesheet" href="src/homepage.css" />
 </head>
@@ -45,11 +45,11 @@
 
         <div class="chat-actions">
           <button id="audioCall" class="icon-btn">
-            <img src="public/phone.svg" alt="Phone" />
+            <img src="/phone.svg" alt="Phone" />
           </button>
 
           <button id="videoCall" class="icon-btn">
-            <img src="public/video-camera.svg" alt="Video" />
+            <img src="/video-camera.svg" alt="Video" />
           </button>
 
           <button id="profileBtn" class="icon-btn">⋮</button>
@@ -123,6 +123,9 @@
     </div>
   </div>
 
+  <div id="globalLoader" class="loader hidden">
+    <div class="loader-spinner"></div>
+  </div>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="script.js"></script>
 </body>

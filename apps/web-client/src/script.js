@@ -21,58 +21,62 @@ const registerForm = document.querySelector("#js-register-form");
 const forgotForm = document.querySelector("#js-forgot-form");
 
 const showRegisterBtn = document.querySelector("#js-show-register");
-const showLoginLink = document.querySelector("#js-show-login");
-const showForgotLink = document.querySelector("#js-show-forgot");
-const backToLoginLink = document.querySelector("#js-back-to-login");
-const btn = loginForm.querySelector("button");
+const showLoginBtn = document.querySelector("#js-show-login");
+const showForgotBtn = document.querySelector("#js-show-forgot");
+const backToLoginBtn = document.querySelector("#js-back-to-login");
+
+const loader = document.querySelector("#globalLoader");
+
+function showLoader() {
+  loader.classList.add("active");
+}
+
+function hideLoader() {
+  loader.classList.remove("active");
+}
 
 // PANEL SWITCHING
-const showPanel = (panel) => {
+function switchPanel(panel) {
   [loginPanel, registerPanel, forgotPanel].forEach(p =>
     p.classList.remove("is-active")
   );
-  panel.classList.add("is-active");
-};
 
-showRegisterBtn.addEventListener("click", () => showPanel(registerPanel));
-showLoginLink.addEventListener("click", e => {
-  e.preventDefault();
-  showPanel(loginPanel);
-});
-showForgotLink.addEventListener("click", e => {
-  e.preventDefault();
-  showPanel(forgotPanel);
-});
-backToLoginLink.addEventListener("click", e => {
-  e.preventDefault();
-  showPanel(loginPanel);
-});
+  panel.classList.add("is-active");
+}
+
+showRegisterBtn?.addEventListener("click", () => switchPanel(registerPanel));
+showLoginBtn?.addEventListener("click", () => switchPanel(loginPanel));
+showForgotBtn?.addEventListener("click", () => switchPanel(forgotPanel));
+backToLoginBtn?.addEventListener("click", () => switchPanel(loginPanel));
 
 
 // HELPERS
 const sanitize = value => value.trim();
 
-const setError = (input, message) => {
-  const errorEl = input.closest(".form-field")
+function setError(input, message) {
+  const error = input.closest(".form-field")
     .querySelector(".form-field__error");
 
-  errorEl.textContent = message;
-  input.setAttribute("aria-invalid", "true");
-};
+  error.textContent = message;
+  input.classList.add("is-invalid");
+  input.classList.remove("is-valid");
+}
 
-const clearError = input => {
-  const errorEl = input.closest(".form-field")
+function clearError(input) {
+  const error = input.closest(".form-field")
     .querySelector(".form-field__error");
-  errorEl.textContent = "";
-  input.removeAttribute("aria-invalid");
-};
 
-const validateEmail = email => {
+  error.textContent = "";
+  input.classList.remove("is-invalid");
+  input.classList.add("is-valid");
+}
+
+function validateEmail(email) {
   if (email.length > SECURITY_CONFIG.MAX_EMAIL_LENGTH) return false;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-};
+}
 
-const validatePassword = password => {
+function validatePassword(password) {
   const minLength =
     password.length >= SECURITY_CONFIG.MIN_PASSWORD_LENGTH;
   const maxLength =
@@ -81,7 +85,7 @@ const validatePassword = password => {
   const hasUpper = /[A-Z]/.test(password);
   const hasLower = /[a-z]/.test(password);
   const hasNumber = /\d/.test(password);
-  const hasSymbol = /[!@#$%^&*]/.test(password);
+  const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(password);
   const noSpaces = !/\s/.test(password);
 
   const isValid =
@@ -103,9 +107,9 @@ const validatePassword = password => {
     hasSymbol,
     noSpaces,
   };
-};
+}
 
-const refreshAccessToken = async () => {
+async function refreshAccessToken() {
   if (!refreshToken) {
     throw new Error("No refresh token available");
   }
@@ -129,7 +133,10 @@ const refreshAccessToken = async () => {
     throw new Error("Session expired");
   }
 
-  const data = await response.json();
+  let data = {};
+  try {
+    data = await response.json();
+  } catch {}
 
   accessToken = data.accessToken;
   sessionStorage.setItem("accessToken", accessToken);
@@ -139,7 +146,7 @@ const refreshAccessToken = async () => {
 };
 
 //LOGOUT
-const logout = async () => {
+async function logout() {
   if (refreshToken) {
     try {
       await fetch(`${SERVER_URL}/logout`, {
@@ -162,25 +169,27 @@ const logout = async () => {
   localStorage.removeItem("refreshToken");
 
   window.location.href = "/index.html";
-};
+}
 
-const restoreSession = async () => {
-  if (accessToken || refreshToken) {
-    try {
-      if (!accessToken)
-        await refreshAccessToken();
+async function restoreSession() {
+  if (!refreshToken && !accessToken) return;
+  try {
+    if (!accessToken && refreshToken)
+      await refreshAccessToken();
 
+    if (accessToken)
       window.location.href = "/homepage.html";
-    } catch {
-      await logout();
-    }
+  } catch {
+    await logout();
   }
-};
+}
 
-restoreSession();
+document.addEventListener("DOMContentLoaded", () => {
+  restoreSession();
+});
 
 //API HELPER
-const apiRequest = async (endpoint, method, body = null, retry = true) => {
+async function apiRequest(endpoint, method = "GET", body = null, retry = true) {
   const options = {
     method,
     headers: {
@@ -204,7 +213,7 @@ const apiRequest = async (endpoint, method, body = null, retry = true) => {
   }
 
   const isAuthRoute = ["/login", "/register"].includes(endpoint);
-  if (response.status == 401 && retry && !isAuthRoute) {
+  if (response.status === 401 && retry && !isAuthRoute) {
     try {
       await refreshAccessToken();
       return apiRequest(endpoint, method, body, false);
@@ -214,23 +223,23 @@ const apiRequest = async (endpoint, method, body = null, retry = true) => {
     }
   }
 
-  let data;
-  try {
+  let data = {};
+  const contentType = response.headers.get("Content-Type") || "";
+
+  if (contentType && contentType.includes("application/json")) {
     data = await response.json();
-  } catch {
-    data = {};
   }
 
   if (!response.ok) {
-    throw new Error(data.message || "Server error");
+    throw new Error(data.message || "Request failed. Please try again");
   }
 
   return data;
-};
+}
 
 //LOGIN API
-const login = async (email, password) => {
-  const data = await apiRequest("/login", "POST", {
+async function login(email, password) {
+  let data = await apiRequest("/login", "POST", {
     email,
     password
   });
@@ -240,24 +249,26 @@ const login = async (email, password) => {
 
   sessionStorage.setItem("accessToken", accessToken);
 
-  if (data.refreshToken) {
-    localStorage.setItem("refreshToken", data.refreshToken);
+  if (refreshToken) {
+    localStorage.setItem("refreshToken", refreshToken);
   }
   return data;
-};
+}
 
 // REGISTER API
-const register = async (username, email, password) => {
+async function register(username, email, password) {
   return apiRequest("/register", "POST", {
     username,
     email,
     password
   });
-};
+}
 
 // LOGIN FORM
-loginForm.addEventListener("submit", async e => {
+loginForm?.addEventListener("submit", async e => {
   e.preventDefault();
+
+  const btn = loginForm.querySelector("button");
 
   const email = loginForm.email;
   const password = loginForm.password;
@@ -275,10 +286,9 @@ loginForm.addEventListener("submit", async e => {
     isValid = false;
   }
 
-  if (
-    cleanPassword.length < SECURITY_CONFIG.MIN_PASSWORD_LENGTH ||
-    cleanPassword.length > SECURITY_CONFIG.MAX_PASSWORD_LENGTH
-  ) {
+  const result = validatePassword(cleanPassword);
+
+  if (!result.isValid) {
     setError(password, "Invalid credentials.");
     isValid = false;
   }
@@ -290,20 +300,23 @@ loginForm.addEventListener("submit", async e => {
   btn.disabled = true;
 
   try {
+    showLoader();
     await login(cleanEmail, cleanPassword);
 
-    alert("Login successful");
     window.location.href = "/homepage.html";
   } catch (err) {
     setError(password, err.message);
   } finally {
     btn.disabled = false;
+    hideLoader();
   }
 });
 
 //REGISTER FORM
-registerForm.addEventListener("submit", async e => {
+registerForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
+
+  const btn = registerForm.querySelector("button");
 
   const fullName = registerForm.username;
   const email = registerForm.email;
@@ -322,12 +335,12 @@ registerForm.addEventListener("submit", async e => {
     cleanName.length < 3 ||
     cleanName.length > SECURITY_CONFIG.MAX_NAME_LENGTH
   ) {
-    setError(fullName, "Invalid full name.");
+    setError(fullName, "Name must be between 3 and 80 characters.");
     isValid = false;
   }
 
   if (!validateEmail(cleanEmail)) {
-    setError(email, "Invalid email address.");
+    setError(email, "Enter a valid email address.");
     isValid = false;
   }
 
@@ -336,7 +349,7 @@ registerForm.addEventListener("submit", async e => {
   if (!result.isValid) {
     setError(
       password,
-      "Password must be 8-14 chars with upper, lower, number, symbol."
+      "Password must contain uppercase, lowercase, number and symbol."
     );
     isValid = false;
   }
@@ -348,19 +361,26 @@ registerForm.addEventListener("submit", async e => {
 
   if (!isValid) return;
 
+  btn.disabled = true;
+
   try {
+    showLoader();
     await register(cleanName, cleanEmail, cleanPassword);
-    alert("Registration successful");
-    showPanel(loginPanel);
+    switchPanel(loginPanel);
   } catch (err) {
-    setError(email, err.message);
+    setError(email, err.message || "Registration failed.");
+  } finally {
+    hideLoader();
+    btn.disabled = false;
   }
 });
 
 
 // FORGOT PASSWORD
-forgotForm.addEventListener("submit", async e => {
+forgotForm?.addEventListener("submit", async e => {
   e.preventDefault();
+
+  const btn = forgotForm.querySelector("button");
 
   const email = forgotForm.email;
   clearError(email);
@@ -368,24 +388,29 @@ forgotForm.addEventListener("submit", async e => {
   const cleanEmail = sanitize(email.value).toLowerCase();
 
   if (!validateEmail(cleanEmail)) {
-    setError(email, "Invalid email.");
+    setError(email, "Enter a valid email address.");
     return;
   }
 
+  btn.disabled = true;
+
   try {
+    showLoader();
     await apiRequest("/forgot-password", "POST", {
       email: cleanEmail
     });
-    alert("Password reset link sent.");
-    showPanel(loginPanel);
+    switchPanel(loginPanel);
   } catch (err) {
-    setError(email, err.message);
+    setError(email, err.message || "Unable to send reset link.");
+  } finally {
+    hideLoader();
+    btn.disabled = false;
   }
 });
 
 
 // REAL-TIME PASSWORD CHECK
-registerForm.password.addEventListener("input", () => {
+registerForm?.password?.addEventListener("input", () => {
   const result = validatePassword(registerForm.password.value);
 
   if (!registerForm.password.value) {
