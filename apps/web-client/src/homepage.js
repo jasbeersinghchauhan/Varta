@@ -1,7 +1,6 @@
 "use strict";
 
-/* ---------------- CONFIG ---------------- */
-
+//CONFIG
 const SERVER_URL = "https://varta-0w6d.onrender.com";
 
 let accessToken = sessionStorage.getItem("accessToken");
@@ -11,13 +10,12 @@ if (!accessToken) {
     window.location.href = "../index.html";
 }
 
-/* ---------------- STATE ---------------- */
 
 let ws = null;
 let currentConversationId = null;
 let currentReceiverId = null;
 
-/* ---------------- DOM ---------------- */
+//DOM
 
 const conversationList = document.querySelector("#conversationList");
 
@@ -46,8 +44,6 @@ const confirmAddContact = document.querySelector("#confirmAddContact");
 
 const globalLoader = document.querySelector("#globalLoader");
 
-//LOADER
-
 function showLoader() {
     globalLoader.classList.remove("hidden");
 }
@@ -56,7 +52,7 @@ function hideLoader() {
     globalLoader.classList.add("hidden");
 }
 
-/* ---------------- API HELPER ---------------- */
+//API HELPER
 
 async function apiFetch(endpoint, options = {}) {
     const response = await fetch(`${SERVER_URL}${endpoint}`, {
@@ -76,7 +72,7 @@ async function apiFetch(endpoint, options = {}) {
     return response.json();
 }
 
-/* ---------------- USER PROFILE ---------------- */
+//USER PROFILE
 
 async function loadUserProfile() {
     showLoader();
@@ -98,7 +94,7 @@ async function loadUserProfile() {
     hideLoader();
 }
 
-/* ---------------- CONTACTS / CONVERSATIONS ---------------- */
+//CONTACTS
 
 async function loadConversations() {
     const conversations = await apiFetch("/conversations");
@@ -127,7 +123,7 @@ async function loadConversations() {
     });
 }
 
-/* ---------------- OPEN CONVERSATION ---------------- */
+//OPEN CONVERSATIONS
 
 async function openConversation(conv) {
     currentConversationId = conv.id;
@@ -146,7 +142,6 @@ async function openConversation(conv) {
     messages.forEach(renderMessage);
 }
 
-/* ---------------- RENDER MESSAGE ---------------- */
 
 function renderMessage(msg) {
     const messageEl = document.createElement("div");
@@ -162,8 +157,7 @@ function renderMessage(msg) {
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
-/* ---------------- SEND MESSAGE ---------------- */
-
+//SEND MESSAGE
 function sendMessage() {
     const text = messageInput.value.trim();
 
@@ -191,7 +185,7 @@ messageInput.addEventListener("keypress", (e) => {
     if (e.key === "Enter") sendMessage();
 });
 
-/* ---------------- WEBSOCKET ---------------- */
+//WEB SOCKET
 
 function connectWebSocket() {
     ws = new WebSocket(`wss://varta-0w6d.onrender.com?token=${accessToken}`);
@@ -220,8 +214,7 @@ function connectWebSocket() {
     };
 }
 
-/* ---------------- ADD CONTACT ---------------- */
-
+//ADD CONTACT
 addContactBtn.addEventListener("click", () => {
     addContactModal.classList.remove("hidden");
 });
@@ -249,7 +242,7 @@ confirmAddContact.addEventListener("click", async () => {
     }
 });
 
-/* ---------------- PROFILE MODAL ---------------- */
+
 
 profileBtn.addEventListener("click", () => {
     profileModal.classList.remove("hidden");
@@ -259,7 +252,6 @@ closeProfile.addEventListener("click", () => {
     profileModal.classList.add("hidden");
 });
 
-/* ---------------- INIT ---------------- */
 
 async function initApp() {
     await loadUserProfile();

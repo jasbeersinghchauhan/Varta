@@ -5,89 +5,76 @@ import {
     logoutUser as logoutService,
 } from "./auth.service.js";
 import { validateRegister } from "../../middleware/validation.middleware.js";
-import { sendError } from "../../utils/http.utils.js";
+import { query } from "../../database/pool.js";
 
-export async function refresh(req, res, body) {
+export async function refresh(req, res) {
+    const body = req.body;
     try {
         const { refreshToken } = body;
         if (!refreshToken) {
-            res.writeHead(401);
-            return res.end();
+            return res.status(401).json({ message: "Refresh token required" });
         }
 
         const tokens = await refreshSession(refreshToken);
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(tokens));
+        res.status(200).json(tokens);
     } catch (err) {
-        res.writeHead(401);
-        res.end();
+        res.status(401).json({ message: "Session expired or invalid" });
     }
 }
 
-export async function logout(req, res, body) {
+export async function logout(req, res) {
+    const body = req.body;
     try {
         const { refreshToken } = body;
         if (!refreshToken) {
-            res.writeHead(400);
-            return res.end();
+            return res.status(400).json({ message: "Refresh token required" });
         }
-        await logoutService(refreshToken);
 
-        res.writeHead(204);
-        res.end();
+        await logoutService(refreshToken);
+        res.status(204).send();
     } catch (err) {
-        res.writeHead(400);
-        res.end();
+        res.status(400).json({ message: "Logout failed" });
     }
 }
 
-export async function register(req, res, body) {
+export async function register(req, res) {
+    const body = req.body;
     try {
         validateRegister(body);
 
         const { username, email, password } = body;
         await registerUser(username, email, password);
 
-        res.writeHead(201, { "Content-Type": "application/json" });
-        res.end(
-            JSON.stringify({
-                message: "User Created",
-            }),
-        );
+        res.status(201).json({ message: "User Created" });
     } catch (err) {
         if (err.message.startsWith("INVALID_")) {
-            res.writeHead(400, { "Content-Type": "application/json" });
-            return res.end(JSON.stringify({ message: err.message }));
+            return res.status(400).json({ message: err.message });
         }
 
         if (err.code === "ER_DUP_ENTRY") {
-            res.writeHead(409, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ message: "Email already exists" }));
+            return res.status(409).json({ message: "Email already exists" });
         }
-        await sendError(res, 500);
+        res.status(500).json({ message: "Internal server error" });
     }
 }
 
-export async function login(req, res, body) {
+export async function login(req, res) {
+    const body = req.body;
     try {
         const { email, password } = body;
         if (!email || !password) {
-            res.writeHead(400, { "Content-Type": "application/json" });
-            return res.end(
-                JSON.stringify({ message: "Email and password are required" }),
-            );
+            return res
+                .status(400)
+                .json({ message: "Email and password are required" });
         }
         const tokens = await loginUser(email, password);
 
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(tokens));
+        res.status(200).json(tokens);
     } catch (err) {
         if (err.message === "INVALID CREDENTIALS") {
-            res.writeHead(401, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ message: "Invalid credentials" }));
+            res.status(401).json({ message: "Invalid credentials" });
         } else {
-            await sendError(res, 500);
+            res.status(500).json({ message: "Internal server error" });
         }
     }
 }
@@ -101,9 +88,12 @@ export async function getCurrentUser(req, res) {
             [userId],
         );
 
-        res.json(rows[0]);
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.status(200).json(rows[0]);
     } catch (err) {
-        res.writeHead(500);
-        res.end(JSON.stringify({ message: "Server error" }));
+        res.status(500).json({ message: "Server error" });
     }
 }

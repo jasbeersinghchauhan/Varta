@@ -1,47 +1,29 @@
 import express from "express";
+import cors from "cors";
 import { authRoutes } from "./features/auth/auth.routes.js";
-import conversationRoutes from "./features/conversation/conversation.routes.js";
-import { sendError } from "./utils/http.utils.js";
+import { conversationRoutes } from "./features/conversation/conversation.routes.js";
+import { messageRoutes } from "./features/message/message.routes.js";
 
-export async function requestHandler(req, res) {
-  try {
-    const host = req.headers.host || "localhost";
-    const url = new URL(req.url, `http://${host}`);
+const app = express();
 
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "OPTIONS, GET, POST, PUT, DELETE");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+app.use(cors());
+app.use(express.json({ limit: "1mb" }));
 
-    if (req.method === "OPTIONS") {
-      res.writeHead(204);
-      res.end();
-      return;
-    }
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
 
-    console.log(`${req.method} ${url.pathname}`);
+app.use("/", authRoutes);
+app.use("/conversations", conversationRoutes);
+app.use("/messages", messageRoutes);
 
-    if (req.method === "GET" && url.pathname === "/health") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "ok" }));
-      return;
-    }
+app.use((req, res) => {
+  res.status(404).json({ message: "Route not found" });
+});
 
-    const authPaths = ["/register", "/login", "/refresh", "/logout"];
-    if (authPaths.includes(url.pathname)) {
-      const handled = await authRoutes(req, res, url);
-      if (handled === false) {
-        await sendError(res, 405);
-      }
-      return;
-    }
+app.use((err, req, res, next) => {
+  console.error("Server Error: ", err);
+  res.status(500).json({ message: "Internal server error"});
+});
 
-    if (req.method === "GET" && req.url === "/users/me") {
-      return getCurrentUser(req, res);
-    }
-    
-    await sendError(res, 404);
-  } catch (err) {
-    console.error("Server Error: ", err);
-    await sendError(res, 500);
-  }
-}
+export { app };
