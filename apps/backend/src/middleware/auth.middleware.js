@@ -1,15 +1,11 @@
-import jwt from "jsonwebtoken";
+import { verifyAccessToken } from "../utils/token.utils";
 
-export function authentication(req) {
-    const header = req.headers.authorization;
-    if (!header)
-        return null;
+export function authenticate(req, res) {
+    const authHeader = req.headers["authorization"];
+    if (!authHeader)
+        throw new Error("NO_TOKEN");
 
-    const token = header.split(" ")[1];
-    try {
-        const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-        return payload.sub;
-    } catch {
-        return null;
-    }
+    const token = authHeader.split(" ")[1];
+    const userId = verifyAccessToken(token);
+    return userId;
 }

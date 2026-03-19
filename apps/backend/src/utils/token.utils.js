@@ -21,3 +21,12 @@ export async function generateRefreshToken(userId) {
         refreshToken,
     };
 }
+
+export function verifyAccessToken(token) {
+    try {
+        const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        return payload.sub;
+    } catch (err) {
+        throw new Error("INVALID_TOKEN");
+    }
+}

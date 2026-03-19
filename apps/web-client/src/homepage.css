@@ -50,7 +50,7 @@ body {
 
 /* SIDEBAR */
 .sidebar {
-  width: clamp(260px, 25vw, 320px);
+  width: clamp(280px, 22vw, 340px);
   background: var(--bg-surface);
   border-right: 1px solid var(--border-color);
   display: flex;
@@ -232,7 +232,7 @@ body {
 .messages {
   flex: 1;
   overflow-y: auto;
-  padding: 14px 10px;
+  padding: 20px 24px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -242,7 +242,7 @@ body {
 }
 
 .message {
-  max-width: min(65%,520px);;
+  max-width: min(60%,600px);;
   padding: 10px 14px;
   line-height: 1.4;
   word-wrap: break-word;
@@ -496,22 +496,6 @@ body {
   }
 }
 
-@media (min-width: 1440px) {
-  body {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: #d9dbdf;
-  }
-
-  .app {
-    max-width: 1400px;
-    height: 95vh;
-    max-height: 1000px;
-    border-radius: 12px;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-  }
-}
 /* Hiding utility */
 .hidden {
   display: none;

@@ -1,14 +1,28 @@
 <!doctype html>
-<html>
+<html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8" >
+  <meta name="viewport" content="width=device-width, initial-scale=1" >
+  <meta name="theme-color" content="#0f172a">
+  
   <title>Varta</title>
 
-  <link rel="icon" type="image/svg" href="/varta-logo.svg" />
+  <meta name="description" content="Varta is a secure real-time messaging and video calling platform.">
 
-  <link rel="stylesheet" href="src/homepage.css" />
+  <link rel="icon" type="image/svg+xml" href="/public/varta-logo.svg" >
+
+  <link rel="preconnect" href="https://cdn.socket.io" crossorigin>
+  <link rel="dns-prefetch" href="//cdn.socket.io">
+
+  <link rel="preload" href="/src/homepage.css" as="style">
+  <link rel="stylesheet" href="/src/homepage.css" >
+
+  <meta property="og:title" content="Varta Messaging">
+  <meta property="og:description" content="Secure real-time chat and video calling platform.">
+  <meta property="og:type" content="website">
+  
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
 </head>
 
 <body>
@@ -45,11 +59,11 @@
 
         <div class="chat-actions">
           <button id="audioCall" class="icon-btn">
-            <img src="/phone.svg" alt="Phone" />
+            <img src="/public/phone.svg" alt="Phone" />
           </button>
 
           <button id="videoCall" class="icon-btn">
-            <img src="/video-camera.svg" alt="Video" />
+            <img src="/public/video-camera.svg" alt="Video" />
           </button>
 
           <button id="profileBtn" class="icon-btn">⋮</button>
@@ -126,7 +140,7 @@
   <div id="globalLoader" class="loader hidden">
     <div class="loader-spinner"></div>
   </div>
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" defer></script>
   <script src="script.js"></script>
 </body>
 

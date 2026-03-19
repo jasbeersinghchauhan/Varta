@@ -1,4 +1,6 @@
+import express from "express";
 import { authRoutes } from "./features/auth/auth.routes.js";
+import conversationRoutes from "./features/conversation/conversation.routes.js";
 import { sendError } from "./utils/http.utils.js";
 
 export async function requestHandler(req, res) {
@@ -33,6 +35,10 @@ export async function requestHandler(req, res) {
       return;
     }
 
+    if (req.method === "GET" && req.url === "/users/me") {
+      return getCurrentUser(req, res);
+    }
+    
     await sendError(res, 404);
   } catch (err) {
     console.error("Server Error: ", err);

@@ -1,6 +1,11 @@
-import { refreshSession, registerUser, loginUser, logoutUser as logoutService } from "./auth.service.js";
+import {
+    refreshSession,
+    registerUser,
+    loginUser,
+    logoutUser as logoutService,
+} from "./auth.service.js";
 import { validateRegister } from "../../middleware/validation.middleware.js";
-import { sendError } from "../../utils/http.utils.js"
+import { sendError } from "../../utils/http.utils.js";
 
 export async function refresh(req, res, body) {
     try {
@@ -69,7 +74,9 @@ export async function login(req, res, body) {
         const { email, password } = body;
         if (!email || !password) {
             res.writeHead(400, { "Content-Type": "application/json" });
-            return res.end(JSON.stringify({ message: "Email and password are required" }));
+            return res.end(
+                JSON.stringify({ message: "Email and password are required" }),
+            );
         }
         const tokens = await loginUser(email, password);
 
@@ -82,5 +89,21 @@ export async function login(req, res, body) {
         } else {
             await sendError(res, 500);
         }
+    }
+}
+
+export async function getCurrentUser(req, res) {
+    try {
+        const userId = req.user.id;
+
+        const [rows] = await query(
+            `SELECT BIN_TO_UUID(id) AS id, username, email, avatar_url FROM users WHERE id = UUID_TO_BIN(?)`,
+            [userId],
+        );
+
+        res.json(rows[0]);
+    } catch (err) {
+        res.writeHead(500);
+        res.end(JSON.stringify({ message: "Server error" }));
     }
 }

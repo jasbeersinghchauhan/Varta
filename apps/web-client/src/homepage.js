@@ -1,5 +1,7 @@
 "use strict";
 
+/* ---------------- CONFIG ---------------- */
+
 const SERVER_URL = "https://varta-0w6d.onrender.com";
 
 let accessToken = sessionStorage.getItem("accessToken");
@@ -9,27 +11,262 @@ if (!accessToken) {
     window.location.href = "../index.html";
 }
 
-const mainMenu = document.querySelector("#mainMenuBtn");
-const addContact = document.querySelector("#addContactBtn");
+/* ---------------- STATE ---------------- */
+
+let ws = null;
+let currentConversationId = null;
+let currentReceiverId = null;
+
+/* ---------------- DOM ---------------- */
+
 const conversationList = document.querySelector("#conversationList");
 
-const backButton = document.querySelector("#backBtn");
 const chatAvatar = document.querySelector("#chatAvatar");
 const chatUsername = document.querySelector("#chatUsername");
-const chatUserEmail = document.querySelector("#catUserEmail");
+const chatUserEmail = document.querySelector("#chatUserEmail");
 
-const audioCall = document.querySelector("#audioCall");
-const videoCall = document.querySelector("#videoCall");
 const profileBtn = document.querySelector("#profileBtn");
+const profileModal = document.querySelector("#profileModal");
+const closeProfile = document.querySelector("#closeProfile");
+
+const profileAvatar = document.querySelector("#profileAvatar");
+const profileName = document.querySelector("#profileName");
+const profileEmail = document.querySelector("#profileEmail");
 
 const messagesDiv = document.querySelector("#messages");
 
-const fileInput = document.querySelector("#fileInput");
 const messageInput = document.querySelector("#messageInput");
 const sendBtn = document.querySelector("#sendBtn");
 
-const viewProfileOption = document.querySelector("#viewProfileOption");
-const deleteContactOption = document.querySelector("#deleteContactOption");
+const addContactBtn = document.querySelector("#addContactBtn");
+const addContactModal = document.querySelector("#addContactModal");
 const contactEmail = document.querySelector("#contactEmail");
 const cancelAddContact = document.querySelector("#cancelAddContact");
 const confirmAddContact = document.querySelector("#confirmAddContact");
+
+const globalLoader = document.querySelector("#globalLoader");
+
+//LOADER
+
+function showLoader() {
+    globalLoader.classList.remove("hidden");
+}
+
+function hideLoader() {
+    globalLoader.classList.add("hidden");
+}
+
+/* ---------------- API HELPER ---------------- */
+
+async function apiFetch(endpoint, options = {}) {
+    const response = await fetch(`${SERVER_URL}${endpoint}`, {
+        ...options,
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+            ...(options.headers || {}),
+        },
+    });
+
+    if (!response.ok) {
+        console.error("API error:", response.status);
+        return null;
+    }
+
+    return response.json();
+}
+
+/* ---------------- USER PROFILE ---------------- */
+
+async function loadUserProfile() {
+    showLoader();
+
+    const user = await apiFetch("/users/me");
+
+    if (!user) return;
+
+    const avatar = user.avatar_url || "/public/default-avatar.png";
+
+    chatUsername.textContent = user.username;
+    chatUserEmail.textContent = user.email;
+    chatAvatar.src = avatar;
+
+    profileAvatar.src = avatar;
+    profileName.textContent = user.username;
+    profileEmail.textContent = user.email;
+
+    hideLoader();
+}
+
+/* ---------------- CONTACTS / CONVERSATIONS ---------------- */
+
+async function loadConversations() {
+    const conversations = await apiFetch("/conversations");
+
+    if (!conversations) return;
+
+    conversationList.innerHTML = "";
+
+    conversations.forEach((conv) => {
+        const item = document.createElement("div");
+        item.className = "conversation-item";
+
+        const avatar = conv.avatar_url || "/public/default-avatar.png";
+
+        item.innerHTML = `
+      <img class="conversation-avatar" src="${avatar}" />
+      <div class="conversation-info">
+        <div class="conversation-name">${conv.username}</div>
+        <div class="conversation-last">${conv.last_message || ""}</div>
+      </div>
+    `;
+
+        item.addEventListener("click", () => openConversation(conv));
+
+        conversationList.appendChild(item);
+    });
+}
+
+/* ---------------- OPEN CONVERSATION ---------------- */
+
+async function openConversation(conv) {
+    currentConversationId = conv.id;
+    currentReceiverId = conv.user_id;
+
+    chatUsername.textContent = conv.username;
+    chatUserEmail.textContent = conv.email || "";
+    chatAvatar.src = conv.avatar_url || "/public/default-avatar.png";
+
+    messagesDiv.innerHTML = "";
+
+    const messages = await apiFetch(`/messages/${conv.id}`);
+
+    if (!messages) return;
+
+    messages.forEach(renderMessage);
+}
+
+/* ---------------- RENDER MESSAGE ---------------- */
+
+function renderMessage(msg) {
+    const messageEl = document.createElement("div");
+
+    const isSender = msg.is_sender;
+
+    messageEl.className = isSender ? "message message-out" : "message message-in";
+
+    messageEl.textContent = msg.text_content;
+
+    messagesDiv.appendChild(messageEl);
+
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+/* ---------------- SEND MESSAGE ---------------- */
+
+function sendMessage() {
+    const text = messageInput.value.trim();
+
+    if (!text || !ws) return;
+
+    const payload = {
+        type: "send_message",
+        to: currentReceiverId,
+        content: text,
+    };
+
+    ws.send(JSON.stringify(payload));
+
+    renderMessage({
+        text_content: text,
+        is_sender: true,
+    });
+
+    messageInput.value = "";
+}
+
+sendBtn.addEventListener("click", sendMessage);
+
+messageInput.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") sendMessage();
+});
+
+/* ---------------- WEBSOCKET ---------------- */
+
+function connectWebSocket() {
+    ws = new WebSocket(`wss://varta-0w6d.onrender.com?token=${accessToken}`);
+
+    ws.onopen = () => {
+        console.log("WebSocket connected");
+    };
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "new_message") {
+            if (data.conversationId === currentConversationId) {
+                renderMessage({
+                    text_content: data.content,
+                    is_sender: false,
+                });
+            }
+        }
+    };
+
+    ws.onclose = () => {
+        console.log("WebSocket disconnected");
+
+        setTimeout(connectWebSocket, 3000);
+    };
+}
+
+/* ---------------- ADD CONTACT ---------------- */
+
+addContactBtn.addEventListener("click", () => {
+    addContactModal.classList.remove("hidden");
+});
+
+cancelAddContact.addEventListener("click", () => {
+    addContactModal.classList.add("hidden");
+});
+
+confirmAddContact.addEventListener("click", async () => {
+    const email = contactEmail.value.trim();
+
+    if (!email) return;
+
+    const result = await apiFetch("/contacts", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+    });
+
+    if (result) {
+        contactEmail.value = "";
+
+        addContactModal.classList.add("hidden");
+
+        loadConversations();
+    }
+});
+
+/* ---------------- PROFILE MODAL ---------------- */
+
+profileBtn.addEventListener("click", () => {
+    profileModal.classList.remove("hidden");
+});
+
+closeProfile.addEventListener("click", () => {
+    profileModal.classList.add("hidden");
+});
+
+/* ---------------- INIT ---------------- */
+
+async function initApp() {
+    await loadUserProfile();
+
+    await loadConversations();
+
+    connectWebSocket();
+}
+
+initApp();
