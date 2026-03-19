@@ -8,7 +8,7 @@ let refreshToken = localStorage.getItem("refreshToken");
 
 // FIXED: Redirect path to root index.html
 if (!accessToken) {
-    window.location.href = "/index.html"; 
+    window.location.href = "/index.html";
 }
 
 let ws = null;
@@ -61,10 +61,10 @@ async function refreshAccessToken() {
         const response = await fetch(`${SERVER_URL}/refresh`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refreshToken })
+            body: JSON.stringify({ refreshToken }),
         });
         if (!response.ok) throw new Error("Session expired");
-        
+
         const data = await response.json();
         accessToken = data.accessToken;
         sessionStorage.setItem("accessToken", accessToken);
@@ -181,7 +181,6 @@ async function openConversation(conv) {
     messages.forEach(renderMessage);
 }
 
-
 function renderMessage(msg) {
     const messageEl = document.createElement("div");
 
@@ -245,8 +244,14 @@ function connectWebSocket() {
         }
     };
 
-    ws.onclose = () => {
+    ws.onclose = async (event) => {
         console.log("WebSocket disconnected");
+
+        if (event.code === 4001) {
+            console.log("Token expired, attempting refresh...");
+            const newToken = await refreshAccessToken();
+            if (!newToken) return;
+        }
 
         setTimeout(connectWebSocket, 3000);
     };
@@ -286,7 +291,6 @@ profileBtn.addEventListener("click", () => {
 closeProfile.addEventListener("click", () => {
     profileModal.classList.add("hidden");
 });
-
 
 async function initApp() {
     await loadUserProfile();

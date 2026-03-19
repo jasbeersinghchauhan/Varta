@@ -83,7 +83,7 @@ export async function getCurrentUser(req, res) {
     try {
         const userId = req.user.id;
 
-        const [rows] = await query(
+        const rows = await query(
             `SELECT BIN_TO_UUID(id) AS id, username, email, avatar_url FROM users WHERE id = UUID_TO_BIN(?)`,
             [userId],
         );

@@ -14,7 +14,7 @@ async function startServer() {
 
     setInterval(() => {
       cleanupExpiredTokens().catch(err => console.error("Cleanup failed: ", err));
-    }, 3000);
+    }, 1000 * 60 * 15);
   } catch (err) {
     console.error("Database initialization failed: ", err.message);
     process.exit(1);

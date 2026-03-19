@@ -27,11 +27,13 @@ export async function handleSendMessage(websocket, event) {
         messageId,
     };
 
-    const receiverWs = getConnection(receiverId);
+    const receiverSockets = getConnection(receiverId);
 
-    if (receiverWs) {
-        receiverWs.send(JSON.stringify(payload));
+    if (receiverSockets) {
+        for (const ws of receiverSockets) {
+            if (ws.readyState === 1) {
+                ws.send(JSON.stringify(payload));
+            }
+        }
     }
-
-    websocket.send(JSON.stringify(payload));
 }

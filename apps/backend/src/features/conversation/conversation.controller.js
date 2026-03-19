@@ -20,7 +20,7 @@ export async function addContact(req, res) {
             return res.status(400).json({ message: "Email required" });
         }
 
-        const [users] = await query(
+        const users = await query(
             `SELECT BIN_TO_UUID(id) as id FROM users WHERE email = ?`,
             [email],
         );
