@@ -1,5 +1,5 @@
 import { WebSocketServer } from 'ws';
-import { verifyAccessToken } from '../utils/token.utils'
+import { verifyAccessToken } from '../utils/token.utils.js'
 import  { registerConnection, removeConnection } from './connections.js'
 import { routeEvent } from './ws-router.js';
 
