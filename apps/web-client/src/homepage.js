@@ -63,11 +63,6 @@ function openChat() {
   }
 }
 
-conversationElement.addEventListener("click", () => {
-  openChat();
-  loadConversation(userId);
-});
-
 backBtn.addEventListener("click", () => {
   document.querySelector(".app").classList.remove("chat-active");
 });
@@ -189,7 +184,10 @@ async function loadConversations() {
         </div>
         `;
 
-        item.addEventListener("click", () => openConversation(conv));
+        item.addEventListener("click", () => {
+            openChat();
+            openConversation(conv);
+        });
 
         conversationList.appendChild(item);
     });
