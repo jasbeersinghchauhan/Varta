@@ -1,4 +1,4 @@
-import bcrypt from "bcrypt"; my 
+import bcrypt from "bcrypt"; 
 import { pool, query } from "../../database/pool.js";
 import {
     generateAccessToken,
