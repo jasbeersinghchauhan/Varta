@@ -6,17 +6,16 @@ const SERVER_URL = "https://varta-0w6d.onrender.com";
 let accessToken = sessionStorage.getItem("accessToken");
 let refreshToken = localStorage.getItem("refreshToken");
 
+// FIXED: Redirect path to root index.html
 if (!accessToken) {
-    window.location.href = "../index.html";
+    window.location.href = "/index.html"; 
 }
-
 
 let ws = null;
 let currentConversationId = null;
 let currentReceiverId = null;
 
 //DOM
-
 const conversationList = document.querySelector("#conversationList");
 
 const chatAvatar = document.querySelector("#chatAvatar");
@@ -52,10 +51,37 @@ function hideLoader() {
     globalLoader.classList.add("hidden");
 }
 
-//API HELPER
+// TOKEN MANAGEMENT (NEW)
+async function refreshAccessToken() {
+    if (!refreshToken) {
+        window.location.href = "/index.html";
+        return null;
+    }
+    try {
+        const response = await fetch(`${SERVER_URL}/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken })
+        });
+        if (!response.ok) throw new Error("Session expired");
+        
+        const data = await response.json();
+        accessToken = data.accessToken;
+        sessionStorage.setItem("accessToken", accessToken);
+        refreshToken = data.refreshToken;
+        localStorage.setItem("refreshToken", refreshToken);
+        return accessToken;
+    } catch (err) {
+        sessionStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        window.location.href = "/index.html";
+        return null;
+    }
+}
 
-async function apiFetch(endpoint, options = {}) {
-    const response = await fetch(`${SERVER_URL}${endpoint}`, {
+//API HELPER (UPDATED)
+async function apiFetch(endpoint, options = {}, retry = true) {
+    let response = await fetch(`${SERVER_URL}${endpoint}`, {
         ...options,
         headers: {
             "Content-Type": "application/json",
@@ -64,22 +90,37 @@ async function apiFetch(endpoint, options = {}) {
         },
     });
 
+    // If token expired, refresh it and try exactly once more
+    if (response.status === 401 && retry) {
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+            options.headers.Authorization = `Bearer ${newToken}`;
+            response = await fetch(`${SERVER_URL}${endpoint}`, options);
+        } else {
+            return null;
+        }
+    }
+
     if (!response.ok) {
         console.error("API error:", response.status);
         return null;
     }
 
-    return response.json();
+    // Handle empty responses smoothly
+    const text = await response.text();
+    return text ? JSON.parse(text) : {};
 }
 
 //USER PROFILE
-
 async function loadUserProfile() {
     showLoader();
 
     const user = await apiFetch("/users/me");
 
-    if (!user) return;
+    if (!user) {
+        hideLoader();
+        return;
+    }
 
     const avatar = user.avatar_url || "/public/default-avatar.png";
 
@@ -95,7 +136,6 @@ async function loadUserProfile() {
 }
 
 //CONTACTS
-
 async function loadConversations() {
     const conversations = await apiFetch("/conversations");
 
@@ -124,7 +164,6 @@ async function loadConversations() {
 }
 
 //OPEN CONVERSATIONS
-
 async function openConversation(conv) {
     currentConversationId = conv.id;
     currentReceiverId = conv.user_id;
@@ -186,7 +225,6 @@ messageInput.addEventListener("keypress", (e) => {
 });
 
 //WEB SOCKET
-
 function connectWebSocket() {
     ws = new WebSocket(`wss://varta-0w6d.onrender.com?token=${accessToken}`);
 
@@ -228,21 +266,18 @@ confirmAddContact.addEventListener("click", async () => {
 
     if (!email) return;
 
-    const result = await apiFetch("/contacts", {
+    // FIXED: Hits /conversations to create the contact link
+    const result = await apiFetch("/conversations", {
         method: "POST",
         body: JSON.stringify({ email }),
     });
 
     if (result) {
         contactEmail.value = "";
-
         addContactModal.classList.add("hidden");
-
         loadConversations();
     }
 });
-
-
 
 profileBtn.addEventListener("click", () => {
     profileModal.classList.remove("hidden");
@@ -255,9 +290,7 @@ closeProfile.addEventListener("click", () => {
 
 async function initApp() {
     await loadUserProfile();
-
     await loadConversations();
-
     connectWebSocket();
 }
 
