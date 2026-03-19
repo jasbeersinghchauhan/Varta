@@ -1,21 +1,24 @@
 "use strict";
 
-//CONFIG
+// CONFIG
 const SERVER_URL = "https://varta-0w6d.onrender.com";
 
 let accessToken = sessionStorage.getItem("accessToken");
 let refreshToken = localStorage.getItem("refreshToken");
 
-// FIXED: Redirect path to root index.html
 if (!accessToken) {
     window.location.href = "/index.html";
 }
 
 let ws = null;
+
 let currentConversationId = null;
 let currentReceiverId = null;
+let currentUserId = null;
 
-//DOM
+// DOM
+const app = document.querySelector(".app");
+const backBtn = document.querySelector("#backBtn");
 const conversationList = document.querySelector("#conversationList");
 
 const chatAvatar = document.querySelector("#chatAvatar");
@@ -43,6 +46,9 @@ const confirmAddContact = document.querySelector("#confirmAddContact");
 
 const globalLoader = document.querySelector("#globalLoader");
 
+
+sendBtn.disabled = true;
+
 function showLoader() {
     globalLoader.classList.remove("hidden");
 }
@@ -51,25 +57,44 @@ function hideLoader() {
     globalLoader.classList.add("hidden");
 }
 
-// TOKEN MANAGEMENT (NEW)
+function openChat() {
+  if (window.innerWidth <= 900) {
+    app.classList.add("chat-active");
+  }
+}
+
+conversationElement.addEventListener("click", () => {
+  openChat();
+  loadConversation(userId);
+});
+
+backBtn.addEventListener("click", () => {
+  document.querySelector(".app").classList.remove("chat-active");
+});
+// TOKEN MANAGEMENT
 async function refreshAccessToken() {
     if (!refreshToken) {
         window.location.href = "/index.html";
         return null;
     }
+
     try {
         const response = await fetch(`${SERVER_URL}/refresh`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ refreshToken }),
         });
+
         if (!response.ok) throw new Error("Session expired");
 
         const data = await response.json();
+
         accessToken = data.accessToken;
-        sessionStorage.setItem("accessToken", accessToken);
         refreshToken = data.refreshToken;
+
+        sessionStorage.setItem("accessToken", accessToken);
         localStorage.setItem("refreshToken", refreshToken);
+
         return accessToken;
     } catch (err) {
         sessionStorage.removeItem("accessToken");
@@ -79,7 +104,7 @@ async function refreshAccessToken() {
     }
 }
 
-//API HELPER (UPDATED)
+// API HELPER
 async function apiFetch(endpoint, options = {}, retry = true) {
     let response = await fetch(`${SERVER_URL}${endpoint}`, {
         ...options,
@@ -90,12 +115,18 @@ async function apiFetch(endpoint, options = {}, retry = true) {
         },
     });
 
-    // If token expired, refresh it and try exactly once more
     if (response.status === 401 && retry) {
         const newToken = await refreshAccessToken();
+
         if (newToken) {
-            options.headers.Authorization = `Bearer ${newToken}`;
-            response = await fetch(`${SERVER_URL}${endpoint}`, options);
+            response = await fetch(`${SERVER_URL}${endpoint}`, {
+                ...options,
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${newToken}`,
+                    ...(options.headers || {}),
+                },
+            });
         } else {
             return null;
         }
@@ -106,12 +137,11 @@ async function apiFetch(endpoint, options = {}, retry = true) {
         return null;
     }
 
-    // Handle empty responses smoothly
     const text = await response.text();
     return text ? JSON.parse(text) : {};
 }
 
-//USER PROFILE
+// USER PROFILE
 async function loadUserProfile() {
     showLoader();
 
@@ -121,6 +151,8 @@ async function loadUserProfile() {
         hideLoader();
         return;
     }
+
+    currentUserId = user.id;
 
     const avatar = user.avatar_url || "/public/default-avatar.png";
 
@@ -135,27 +167,27 @@ async function loadUserProfile() {
     hideLoader();
 }
 
-//CONTACTS
+// CONVERSATIONS
 async function loadConversations() {
     const conversations = await apiFetch("/conversations");
 
-    if (!conversations) return;
+    if (!Array.isArray(conversations)) return;
 
     conversationList.innerHTML = "";
 
     conversations.forEach((conv) => {
         const item = document.createElement("div");
-        item.className = "conversation-item";
+        item.className = "conversation";
 
         const avatar = conv.avatar_url || "/public/default-avatar.png";
 
         item.innerHTML = `
-      <img class="conversation-avatar" src="${avatar}" />
-      <div class="conversation-info">
-        <div class="conversation-name">${conv.username}</div>
-        <div class="conversation-last">${conv.last_message || ""}</div>
-      </div>
-    `;
+        <img src="${avatar}" />
+        <div class="conversation-info">
+            <div class="conversation-name">${conv.username}</div>
+            <div class="conversation-preview">${conv.last_message || ""}</div>
+        </div>
+        `;
 
         item.addEventListener("click", () => openConversation(conv));
 
@@ -163,7 +195,7 @@ async function loadConversations() {
     });
 }
 
-//OPEN CONVERSATIONS
+// OPEN CONVERSATION
 async function openConversation(conv) {
     currentConversationId = conv.id;
     currentReceiverId = conv.user_id;
@@ -181,51 +213,55 @@ async function openConversation(conv) {
     messages.forEach(renderMessage);
 }
 
+// RENDER MESSAGE
 function renderMessage(msg) {
-    const messageEl = document.createElement("div");
+    const el = document.createElement("div");
 
-    const isSender = msg.is_sender;
+    const isSender = msg.sender_id === currentUserId || msg.senderId === currentUserId || msg.is_sender === true;
 
-    messageEl.className = isSender ? "message message-out" : "message message-in";
+    el.className = isSender ? "message sent" : "message received";
+    el.textContent = msg.text_content || msg.content;
 
-    messageEl.textContent = msg.text_content;
-
-    messagesDiv.appendChild(messageEl);
-
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    messagesDiv.appendChild(el);
+    messagesDiv.lastElementChild?.scrollIntoView({ behavior: "smooth" });
 }
 
-//SEND MESSAGE
-function sendMessage() {
+// SEND MESSAGE
+async function sendMessage() {
     const text = messageInput.value.trim();
 
-    if (!text || !ws) return;
+    if (!text || !currentConversationId || !ws || ws.readyState !== 1) return;
 
     const payload = {
         type: "send_message",
         to: currentReceiverId,
-        content: text,
+        content: text
     };
 
     ws.send(JSON.stringify(payload));
 
-    renderMessage({
-        text_content: text,
-        is_sender: true,
-    });
-
     messageInput.value = "";
+    sendBtn.disabled = true;
 }
 
 sendBtn.addEventListener("click", sendMessage);
 
-messageInput.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") sendMessage();
+messageInput.addEventListener("input", () => {
+    sendBtn.disabled = !messageInput.value.trim();
 });
 
-//WEB SOCKET
+messageInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+// WEBSOCKET
 function connectWebSocket() {
-    ws = new WebSocket(`wss://varta-0w6d.onrender.com?token=${accessToken}`);
+    const wsURL = SERVER_URL.replace(/^http/, "ws");
+
+    ws = new WebSocket(`${wsURL}?token=${accessToken}`);
 
     ws.onopen = () => {
         console.log("WebSocket connected");
@@ -236,19 +272,16 @@ function connectWebSocket() {
 
         if (data.type === "new_message") {
             if (data.conversationId === currentConversationId) {
-                renderMessage({
-                    text_content: data.content,
-                    is_sender: false,
-                });
+                renderMessage(data);
             }
+        } else if (data.type === "error") {
+            console.error("Server returned an error:", data.message);
         }
     };
 
     ws.onclose = async (event) => {
         console.log("WebSocket disconnected");
-
         if (event.code === 4001) {
-            console.log("Token expired, attempting refresh...");
             const newToken = await refreshAccessToken();
             if (!newToken) return;
         }
@@ -257,7 +290,7 @@ function connectWebSocket() {
     };
 }
 
-//ADD CONTACT
+// ADD CONTACT
 addContactBtn.addEventListener("click", () => {
     addContactModal.classList.remove("hidden");
 });
@@ -271,7 +304,6 @@ confirmAddContact.addEventListener("click", async () => {
 
     if (!email) return;
 
-    // FIXED: Hits /conversations to create the contact link
     const result = await apiFetch("/conversations", {
         method: "POST",
         body: JSON.stringify({ email }),
@@ -284,6 +316,7 @@ confirmAddContact.addEventListener("click", async () => {
     }
 });
 
+// PROFILE
 profileBtn.addEventListener("click", () => {
     profileModal.classList.remove("hidden");
 });
@@ -292,6 +325,7 @@ closeProfile.addEventListener("click", () => {
     profileModal.classList.add("hidden");
 });
 
+// INIT
 async function initApp() {
     await loadUserProfile();
     await loadConversations();

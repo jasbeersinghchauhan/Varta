@@ -3,9 +3,17 @@ import {
     createMessage,
     updateLastMessage,
 } from "../features/message/message.service.js";
-import { getConnection } from "./connections.js";
+import { sendToUser } from "./connections.js";
 
 export async function handleSendMessage(websocket, event) {
+    if (!event.to || !event.content) {
+        websocket.send(JSON.stringify({
+            type: "error",
+            message: "INVALID_MESSAGE"
+        }));
+        return;
+    }
+
     const senderId = websocket.userId;
     const receiverId = event.to;
 
@@ -25,15 +33,9 @@ export async function handleSendMessage(websocket, event) {
         senderId,
         content: event.content,
         messageId,
+        timestamp: Date.now()
     };
 
-    const receiverSockets = getConnection(receiverId);
-
-    if (receiverSockets) {
-        for (const ws of receiverSockets) {
-            if (ws.readyState === 1) {
-                ws.send(JSON.stringify(payload));
-            }
-        }
-    }
+    sendToUser(receiverId, payload);
+    sendToUser(senderId, payload);
 }

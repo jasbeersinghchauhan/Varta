@@ -9,6 +9,7 @@
   --border-color: #e4e6eb;
   --msg-sent: #0084ff;
   --msg-received: #e4e6eb;
+  --msg-bg: #eef1f5;
   --input-bg: #f0f2f5;
 }
 
@@ -120,6 +121,7 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 /* CHAT AREA */
 .chat {
   flex: 1;
@@ -138,6 +140,7 @@ body {
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border-color);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  flex-shrink: 0;
 }
 
 .chat-user {
@@ -155,6 +158,7 @@ body {
 .chat-user:hover {
   background: var(--input-bg);
 }
+
 .chat-user img {
   width: 40px;
   height: 40px;
@@ -236,18 +240,32 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: var(--bg-body);
+  background: var(--msg-bg);
   scroll-behavior: smooth;
-  will-change:scroll-position;
+  will-change: scroll-position;
 }
 
 .message {
-  max-width: min(60%,600px);;
+  max-width: 60%;
   padding: 10px 14px;
   line-height: 1.4;
   word-wrap: break-word;
   font-size: 15px;
   border-radius: 18px;
+  margin: 2px 0;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .sent {
@@ -273,6 +291,8 @@ body {
   background: var(--bg-surface);
   position: sticky;
   bottom: 0;
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;   
 }
 
 .file-upload {
@@ -313,12 +333,13 @@ body {
 }
 
 .message-input button {
-  padding: 0 18px;
+  padding: 0 20px;
   height: 40px;
   background: var(--primary-blue);
   color: #ffffff;
   border: none;
   border-radius: 20px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s;
@@ -436,17 +457,20 @@ body {
     position: absolute;
     inset: 0;
     z-index: 10;
+    background: var(--bg-surface);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .chat {
-    width: 100%;
-    position: absolute;
-    inset: 0;
-    z-index: 20;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
     transform: translateX(100%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     background: var(--bg-surface);
+    height: 100vh;
+    overflow: hidden;
   }
 
   .app.chat-active .sidebar {
@@ -466,6 +490,7 @@ body {
   .message {
     max-width: 85%;
   }
+
   .message-input {
     padding: 8px;
   }

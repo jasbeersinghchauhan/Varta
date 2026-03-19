@@ -7,6 +7,10 @@ export async function createMessage({
     textContent = "",
     attachmentUrl = null,
 }) {
+    if (!textContent && !attachmentUrl) {
+        throw new Error("EMPTY_MESSAGE");
+    }
+
     const messageId = crypto.randomUUID();
 
     await query(
@@ -23,7 +27,7 @@ export async function updateLastMessage(conversationId, messageId) {
     );
 }
 
-export async function getMessages(conversationId) {
+export async function getMessages(conversationId, currentUserId) {
     const rows = await query(
         `SELECT 
             BIN_TO_UUID(id) as id, 

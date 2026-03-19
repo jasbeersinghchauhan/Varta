@@ -1,14 +1,10 @@
 import { query } from "../../database/pool.js";
 
-function normalizeUsers(userA, userB) {
-    return userA < userB ? [userA, userB] : [userB, userA];
-}
-
 export async function getOrCreateConversation(userA, userB) {
-    const [u1, u2] = normalizeUsers(userA, userB);
+    const [u1, u2] = [userA, userB].sort();
 
     const rows = await query(
-        `SELECT id FROM conversations WHERE user1_id = ? AND user2_id = ?`,
+        `SELECT BIN_TO_UUID(id) as id FROM conversations WHERE user1_id = UUID_TO_BIN(?) AND user2_id = UUID_TO_BIN(?)`,
         [u1, u2],
     );
     if (rows.length > 0) return rows[0];
@@ -40,7 +36,7 @@ export async function getUserConversations(userId) {
          END
          LEFT JOIN messages m ON c.last_message_id = m.id
          WHERE c.user1_id = UUID_TO_BIN(?) OR c.user2_id = UUID_TO_BIN(?) 
-         ORDER BY c.created_at DESC`,
+         ORDER BY m.created_at DESC`,
         [userId, userId, userId],
     );
     return rows;

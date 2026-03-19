@@ -41,7 +41,7 @@ export function initializeWebSocket(httpServer) {
 
         websocket.on("close", () => {
             if (websocket.userId)
-                removeConnection(websocket.userId);
+                removeConnection(websocket.userId, websocket);
         });
     });
     return wss;
