@@ -1,16 +1,15 @@
 import { getOrCreateConversation } from "../features/conversation/conversation.service.js";
-import {
-    createMessage,
-    updateLastMessage,
-} from "../features/message/message.service.js";
+import { createMessage } from "../features/message/message.service.js";
 import { sendToUser } from "./connections.js";
 
 export async function handleSendMessage(websocket, event) {
     if (!event.to || !event.content) {
-        websocket.send(JSON.stringify({
-            type: "error",
-            message: "INVALID_MESSAGE"
-        }));
+        websocket.send(
+            JSON.stringify({
+                type: "error",
+                message: "INVALID_MESSAGE",
+            }),
+        );
         return;
     }
 
@@ -25,15 +24,13 @@ export async function handleSendMessage(websocket, event) {
         textContent: event.content,
     });
 
-    await updateLastMessage(conversation.id, messageId);
-
     const payload = {
         type: "new_message",
         conversationId: conversation.id,
         senderId,
         content: event.content,
         messageId,
-        timestamp: Date.now()
+        timestamp: Date.now(),
     };
 
     sendToUser(receiverId, payload);

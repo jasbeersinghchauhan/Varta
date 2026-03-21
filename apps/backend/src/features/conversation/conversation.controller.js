@@ -6,10 +6,11 @@ export async function getConversations(req, res) {
     try {
         const userId = req.user.id;
         const conversations = await getUserConversations(userId);
+        const sockets = getConnection(conv.user_id);
 
         const userConversations = conversations.map(conv => ({
             ...conv,
-            is_online: getConnection(conv.user_id) !== undefined
+            is_online: sockets && sockets.size > 0
         }));
         res.json(userConversations);
     } catch (err) {

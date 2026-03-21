@@ -1,4 +1,4 @@
-import { query } from "../../database/pool.js";
+import { pool, query } from "../../database/pool.js";
 import { uuidToBuffer, bufferToUuid } from "../../utils/uuid.js";
 import crypto from "crypto";
 
@@ -49,19 +49,16 @@ export async function createMessage({
 
 export async function updateLastMessage(conversationId, messageId) {
     await query(
-        `UPDATE conversations SET last_message_id = UUID_TO_BIN(?) WHERE id = UUID_TO_BIN(?)`,
-        [messageId, conversationId],
+        `UPDATE conversations SET last_message_id = ? WHERE id = ?`,
+        [uuidToBuffer(messageId), uuidToBuffer(conversationId)],
     );
 }
 
 export async function getMessages(
     conversationId,
     currentUserId,
-    cursor = new Date(),
+    cursor = null,
 ) {
-    conversationId = uuidToBuffer(conversationId);
-    currentUserId = uuidToBuffer(currentUserId);
-
     const rows = await query(
         `SELECT 
             id, 
@@ -76,7 +73,7 @@ export async function getMessages(
         ${cursor ? "AND created_at < ?" : ""}
         ORDER BY created_at DESC 
         LIMIT 50`,
-        [currentUserId, conversationId, cursor]
+        [uuidToBuffer(currentUserId), uuidToBuffer(conversationId), cursor]
     );
     return rows.reverse().map((row) => ({
         id: bufferToUuid(row.id),

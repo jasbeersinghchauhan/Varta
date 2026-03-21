@@ -13,7 +13,7 @@ export async function fetchMessages(req, res) {
         const messages = await getMessages(
             conversationId,
             userId,
-            cursor ? new Date(cursor) : new Date(),
+            cursor ? new Date(cursor) : null,
         );
         res.json(messages);
     } catch (err) {

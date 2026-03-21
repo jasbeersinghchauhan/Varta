@@ -29,6 +29,8 @@ export async function validateConversationUser(conversationId, userId) {
 }
 
 export async function getUserConversations(userId) {
+    const userBuffer = uuidToBuffer(userId);
+
     const rows = await query(
         `SELECT 
             BIN_TO_UUID(c.id) as id,
@@ -39,13 +41,13 @@ export async function getUserConversations(userId) {
             m.text_content as last_message
          FROM conversations c
          JOIN users u ON u.id = CASE 
-            WHEN c.user1_id = UUID_TO_BIN(?) THEN c.user2_id 
+            WHEN c.user1_id = ? THEN c.user2_id 
             ELSE c.user1_id 
          END
          LEFT JOIN messages m ON c.last_message_id = m.id
-         WHERE c.user1_id = UUID_TO_BIN(?) OR c.user2_id = UUID_TO_BIN(?) 
+         WHERE c.user1_id = ? OR c.user2_id = ?
          ORDER BY m.created_at DESC`,
-        [userId, userId, userId],
+        [userBuffer, userBuffer, userBuffer],
     );
     return rows;
 }

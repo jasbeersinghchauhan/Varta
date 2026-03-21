@@ -1,3 +1,5 @@
+import { getUserConversations } from "../features/conversation/conversation.service.js";
+
 const onlineUsers = new Map();
 
 export function registerConnection(userId, websocket) {
@@ -44,7 +46,7 @@ export async function broadcastStatus(userId, isOnline) {
         };
 
         for (const conv of conversations) {
-            sendToUser(conv.userId, payload);
+            sendToUser(conv.user_id, payload);
         }
     } catch (err) {
         console.error("Failed to broadcast status:", err);
