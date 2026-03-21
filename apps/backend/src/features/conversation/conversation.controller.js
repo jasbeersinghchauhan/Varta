@@ -1,11 +1,17 @@
 import { getOrCreateConversation, getUserConversations } from "./conversation.service.js";
 import { query } from "../../database/pool.js";
+import { getConnection } from "../../websocket/connections.js";
 
 export async function getConversations(req, res) {
     try {
         const userId = req.user.id;
         const conversations = await getUserConversations(userId);
-        res.json(conversations);
+
+        const userConversations = conversations.map(conv => ({
+            ...conv,
+            is_online: getConnection(conv.user_id) !== undefined
+        }));
+        res.json(userConversations);
     } catch (err) {
         res.status(500).json({ message: "Failed to load conversations" });
     }

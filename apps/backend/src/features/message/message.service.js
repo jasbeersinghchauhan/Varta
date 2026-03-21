@@ -1,4 +1,5 @@
 import { query } from "../../database/pool.js";
+import { uuidToBuffer, bufferToUuid } from "../../utils/uuid.js";
 import crypto from "crypto";
 
 export async function createMessage({
@@ -13,10 +14,36 @@ export async function createMessage({
 
     const messageId = crypto.randomUUID();
 
-    await query(
-        `INSERT INTO messages (id, conversation_id, sender_id, text_content, attachment_url) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?)`,
-        [messageId, conversationId, senderId, textContent, attachmentUrl],
-    );
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        await query(
+            `INSERT INTO messages (id, conversation_id, sender_id, text_content, attachment_url) VALUES (?, ?, ?, ?, ?)`,
+            [
+                uuidToBuffer(messageId),
+                uuidToBuffer(conversationId),
+                uuidToBuffer(senderId),
+                textContent,
+                attachmentUrl,
+            ],
+            connection,
+        );
+
+        await query(
+            `UPDATE conversations SET last_message_id = ? WHERE id = ?`,
+            [uuidToBuffer(messageId), uuidToBuffer(conversationId)],
+            connection,
+        );
+
+        await connection.commit();
+    } catch (err) {
+        await connection.rollback();
+        throw err;
+    } finally {
+        connection.release();
+    }
+
     return messageId;
 }
 
@@ -27,24 +54,37 @@ export async function updateLastMessage(conversationId, messageId) {
     );
 }
 
-export async function getMessages(conversationId, currentUserId) {
+export async function getMessages(
+    conversationId,
+    currentUserId,
+    cursor = new Date(),
+) {
+    conversationId = uuidToBuffer(conversationId);
+    currentUserId = uuidToBuffer(currentUserId);
+
     const rows = await query(
         `SELECT 
-            BIN_TO_UUID(id) as id, 
-            BIN_TO_UUID(conversation_id) as conversation_id, 
-            BIN_TO_UUID(sender_id) as sender_id, 
+            id, 
+            conversation_id, 
+            sender_id, 
             text_content, 
             attachment_url,
             created_at,
-            (sender_id = UUID_TO_BIN(?)) as is_sender
+            sender_id = ? AS is_sender
         FROM messages 
-        WHERE conversation_id = UUID_TO_BIN(?) 
-        ORDER BY created_at ASC 
+        WHERE conversation_id = ? 
+        ${cursor ? "AND created_at < ?" : ""}
+        ORDER BY created_at DESC 
         LIMIT 50`,
-        [currentUserId, conversationId],
+        [currentUserId, conversationId, cursor]
     );
-    return rows.map((row) => ({
-        ...row,
-        is_sender: !!row.is_sender,
+    return rows.reverse().map((row) => ({
+        id: bufferToUuid(row.id),
+        conversation_id: bufferToUuid(row.conversation_id),
+        sender_id: bufferToUuid(row.sender_id),
+        text_content: row.text_content,
+        attachment_url: row.attachment_url,
+        created_at: row.created_at,
+        is_sender: Boolean(row.is_sender),
     }));
 }

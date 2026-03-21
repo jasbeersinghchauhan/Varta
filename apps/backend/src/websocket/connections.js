@@ -32,3 +32,21 @@ export function sendToUser(userId, payload) {
         }
     }
 }
+
+export async function broadcastStatus(userId, isOnline) {
+    try {
+        const conversations = await getUserConversations(userId);
+
+        const payload = {
+            type: "user_status",
+            userId: userId,
+            is_online: isOnline
+        };
+
+        for (const conv of conversations) {
+            sendToUser(conv.userId, payload);
+        }
+    } catch (err) {
+        console.error("Failed to broadcast status:", err);
+    }
+}

@@ -1,6 +1,6 @@
 import { WebSocketServer } from 'ws';
 import { verifyAccessToken } from '../utils/token.utils.js'
-import  { registerConnection, removeConnection } from './connections.js'
+import  { registerConnection, removeConnection, getConnection, broadcastStatus } from './connections.js'
 import { routeEvent } from './ws-router.js';
 
 export function initializeWebSocket(httpServer) {
@@ -16,11 +16,13 @@ export function initializeWebSocket(httpServer) {
                 return;
             }
 
-            const userId = verifyAccessToken(token);
+            const { userId } = verifyAccessToken(token);
 
             registerConnection(userId, websocket);
 
             websocket.userId = userId;
+
+            broadcastStatus(userId, true);
         } catch (err) {
             websocket.close(4001, "Invalid token");
             return;
@@ -40,8 +42,14 @@ export function initializeWebSocket(httpServer) {
         });
 
         websocket.on("close", () => {
-            if (websocket.userId)
+            if (websocket.userId){
                 removeConnection(websocket.userId, websocket);
+                
+                const activeSockets = getConnection(websocket.userId);
+                if (!activeSockets || activeSockets.size === 0) {
+                    broadcastStatus(websocket.userId, false);
+                }
+            }
         });
     });
     return wss;

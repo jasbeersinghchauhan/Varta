@@ -1,23 +1,31 @@
 import { query } from "../../database/pool.js";
+import { uuidToBuffer, bufferToUuid } from "../../utils/uuid.js";
 
 export async function getOrCreateConversation(userA, userB) {
-    const [u1, u2] = [userA, userB].sort();
+    const [user1, user2] = [userA, userB].sort();
 
-    const rows = await query(
-        `SELECT BIN_TO_UUID(id) as id FROM conversations WHERE user1_id = UUID_TO_BIN(?) AND user2_id = UUID_TO_BIN(?)`,
-        [u1, u2],
-    );
-    if (rows.length > 0) return rows[0];
+    const b1 = uuidToBuffer(user1);
+    const b2 = uuidToBuffer(user2);
 
     await query(
-        `INSERT INTO conversations (user1_id, user2_id) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?))`,
-        [u1, u2],
+        `INSERT IGNORE INTO conversations (user1_id, user2_id) VALUES (?, ?)`,
+        [b1, b2],
     );
-    const newRows = await query(
-        `SELECT BIN_TO_UUID(id) as id FROM conversations WHERE user1_id = UUID_TO_BIN(?) AND user2_id = UUID_TO_BIN(?)`,
-        [u1, u2],
+
+    const rows = await query(
+        `SELECT id FROM conversations WHERE user1_id = ? AND user2_id = ?`,
+        [b1, b2],
     );
-    return newRows[0];
+    return {
+        id: bufferToUuid(rows[0].id)
+    };
+}
+
+export async function validateConversationUser(conversationId, userId) {
+    const rows = await query(`SELECT 1 FROM conversations WHERE id = ? AND (user1_id = ? OR user2_id = ?)`,
+        [uuidToBuffer(conversationId), uuidToBuffer(userId), uuidToBuffer(userId)]
+    );
+    return rows.length > 0; 
 }
 
 export async function getUserConversations(userId) {

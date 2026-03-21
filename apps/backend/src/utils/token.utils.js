@@ -14,18 +14,24 @@ export async function generateRefreshToken(userId) {
 
     const refreshToken = `${tokenId}.${secret}`;
     const tokenHash = await bcrypt.hash(secret, 10);
+    const expiresAt = new Date(
+        Date.now() + 1000 * 60 * 60 * 24 * 30
+    );//30 DAYS
 
     return {
         tokenId,
         tokenHash,
         refreshToken,
+        expiresAt
     };
 }
 
 export function verifyAccessToken(token) {
     try {
         const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-        return payload.sub;
+        return {
+            userId: payload.sub
+        };
     } catch (err) {
         throw new Error("INVALID_TOKEN");
     }
