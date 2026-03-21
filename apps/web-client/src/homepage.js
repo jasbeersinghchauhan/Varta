@@ -58,13 +58,13 @@ function hideLoader() {
 }
 
 function openChat() {
-  if (window.innerWidth <= 900) {
-    app.classList.add("chat-active");
-  }
+    if (window.innerWidth <= 900) {
+        app.classList.add("chat-active");
+    }
 }
 
 backBtn.addEventListener("click", () => {
-  document.querySelector(".app").classList.remove("chat-active");
+    document.querySelector(".app").classList.remove("chat-active");
 });
 // TOKEN MANAGEMENT
 async function refreshAccessToken() {
@@ -151,9 +151,10 @@ async function loadUserProfile() {
 
     const avatar = user.avatar_url || "/public/default-avatar.png";
 
-    chatUsername.textContent = user.username;
-    chatUserEmail.textContent = user.email;
-    chatAvatar.src = avatar;
+    const firstName = user.username.split(' ')[0];
+    chatUsername.textContent = `Welcome, ${firstName}`;
+    chatUserEmail.textContent = "Select a conversation to start messaging";
+    chatAvatar.src = "/public/varta-logo.svg";
 
     profileAvatar.src = avatar;
     profileName.textContent = user.username;
@@ -164,6 +165,9 @@ async function loadUserProfile() {
 
 // CONVERSATIONS
 async function loadConversations() {
+    conversationList.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 14px;">
+                                    Loading chats...
+                                </div>`;
     const conversations = await apiFetch("/conversations");
 
     if (!Array.isArray(conversations)) return;
@@ -174,10 +178,13 @@ async function loadConversations() {
         const item = document.createElement("div");
         item.className = "conversation";
 
-        const avatar = conv.avatar_url || "/public/default-avatar.png";
-
+        const avatar = conv.avatar_url || "/public/default-avatar.svg";
+        const statusClass = conv.is_online ? "online" : "offline";
         item.innerHTML = `
-        <img src="${avatar}" />
+        <div class="avatar-container">
+            <img src="${avatar}" />
+            <span class="status-dot ${statusClass}"></span>
+        </div>
         <div class="conversation-info">
             <div class="conversation-name">${conv.username}</div>
             <div class="conversation-preview">${conv.last_message || ""}</div>
@@ -195,24 +202,43 @@ async function loadConversations() {
 
 // OPEN CONVERSATION
 async function openConversation(conv) {
+    messageInput.disabled = false;
+    messageInput.placeholder = "Type a message..."
+
     currentConversationId = conv.id;
     currentReceiverId = conv.user_id;
 
     chatUsername.textContent = conv.username;
     chatUserEmail.textContent = conv.email || "";
-    chatAvatar.src = conv.avatar_url || "/public/default-avatar.png";
+    chatAvatar.src = conv.avatar_url || "/public/default-avatar.svg";
 
-    messagesDiv.innerHTML = "";
+    messagesDiv.innerHTML = `<div style="text-align:center; padding: 20px; color: var(--text-muted); font-size: 14px;">
+                                Loading messages...
+                            </div>`;
 
     const messages = await apiFetch(`/messages/${conv.id}`);
 
-    if (!messages) return;
+    messagesDiv.innerHTML = "";
 
-    messages.forEach(renderMessage);
+    if (!messages || messages.length === 0) {
+        messagesDiv.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted);">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 12px; opacity: 0.5;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                <p>No messages yet.</p>
+                <p style="font-size: 12px;">Send a message to start the conversation.</p>
+            </div>
+        `;
+        return;
+    }
+
+    messages.forEach(msg => renderMessage(msg, false));
+    if (messagesDiv.lastElementChild) {
+        messagesDiv.lastElementChild.scrollIntoView({ behavior: "auto" });
+    }
 }
 
 // RENDER MESSAGE
-function renderMessage(msg) {
+function renderMessage(msg, smoothScroll = true) {
     const el = document.createElement("div");
 
     const isSender = msg.sender_id === currentUserId || msg.senderId === currentUserId || msg.is_sender === true;
@@ -221,20 +247,33 @@ function renderMessage(msg) {
     el.textContent = msg.text_content || msg.content;
 
     messagesDiv.appendChild(el);
-    messagesDiv.lastElementChild?.scrollIntoView({ behavior: "smooth" });
+
+    if (smoothScroll && messagesDiv.lastElementChild) {
+        messagesDiv.lastElementChild?.scrollIntoView({ behavior: "smooth" });
+    }
 }
 
 // SEND MESSAGE
 async function sendMessage() {
     const text = messageInput.value.trim();
 
-    if (!text || !currentConversationId || !ws || ws.readyState !== 1) return;
+    if (!text || !currentConversationId) return;
+
+    if (!ws || ws.readyState !== 1) {
+        alert("Connecting..");
+        return;
+    }
 
     const payload = {
         type: "send_message",
         to: currentReceiverId,
         content: text
     };
+
+    renderMessage({
+        is_sender: true,
+        content: text
+    }, true);
 
     ws.send(JSON.stringify(payload));
 
@@ -256,6 +295,8 @@ messageInput.addEventListener("keydown", (e) => {
 });
 
 // WEBSOCKET
+let reconnectattempts = 0;
+
 function connectWebSocket() {
     const wsURL = SERVER_URL.replace(/^http/, "ws");
 
@@ -263,6 +304,7 @@ function connectWebSocket() {
 
     ws.onopen = () => {
         console.log("WebSocket connected");
+        reconnectattempts = 0;
     };
 
     ws.onmessage = (event) => {
@@ -270,8 +312,10 @@ function connectWebSocket() {
 
         if (data.type === "new_message") {
             if (data.conversationId === currentConversationId) {
-                renderMessage(data);
+                renderMessage(data, true);
             }
+        } else if (data.type === "user_status") {
+            loadConversations();
         } else if (data.type === "error") {
             console.error("Server returned an error:", data.message);
         }
@@ -284,6 +328,9 @@ function connectWebSocket() {
             if (!newToken) return;
         }
 
+        reconnectattempts++;
+        const delay = Math.min(1000 * Math.pow(2, reconnectattempts), 30000);
+        console.log(`Reconnecting in ${delay / 1000}s...`);
         setTimeout(connectWebSocket, 3000);
     };
 }
@@ -323,8 +370,27 @@ closeProfile.addEventListener("click", () => {
     profileModal.classList.add("hidden");
 });
 
+function setInitialState() {
+    chatUsername.textContent = "Welcome to Varta";
+    chatUserEmail.textContent = "Select a conversation to start messaging";
+    chatAvatar.src = "/public/varta-logo.svg";
+
+    messageInput.disabled = true;
+    messageInput.placeholder = "Open a chat to type...";
+    sendBtn.disabled = true;
+
+    messagesDiv.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted);">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px; opacity: 0.3;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
+            <h2>Varta for Web</h2>
+            <p style="font-size: 14px; margin-top: 8px;">Send and receive messages securely.</p>
+        </div>
+    `;
+}
+
 // INIT
 async function initApp() {
+    setInitialState();
     await loadUserProfile();
     await loadConversations();
     connectWebSocket();

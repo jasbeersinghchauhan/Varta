@@ -2,26 +2,27 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8" >
-  <meta name="viewport" content="width=device-width, initial-scale=1" >
-  <meta name="theme-color" content="#0f172a">
-  
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0f172a" />
+
   <title>Varta</title>
 
-  <meta name="description" content="Varta is a secure real-time messaging and video calling platform.">
+  <meta name="description" content="Varta is a secure real-time messaging and video calling platform." />
 
-  <link rel="icon" type="image/svg+xml" href="/public/varta-logo.svg" >
+  <link rel="icon" type="image/svg+xml" href="/public/varta-logo.svg" />
 
-  <link rel="dns-prefetch" href="//cdn.socket.io">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="preload" href="/src/homepage.css" as="style" />
+  <link rel="stylesheet" href="/src/homepage.css" />
 
-  <link rel="preload" href="/src/homepage.css" as="style">
-  <link rel="stylesheet" href="/src/homepage.css" >
+  <meta property="og:title" content="Varta Messaging" />
+  <meta property="og:description" content="Secure real-time chat and video calling platform." />
+  <meta property="og:type" content="website" />
 
-  <meta property="og:title" content="Varta Messaging">
-  <meta property="og:description" content="Secure real-time chat and video calling platform.">
-  <meta property="og:type" content="website">
-  
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
 </head>
 
 <body>
@@ -29,9 +30,22 @@
     <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
-        <button id="mainMenuBtn" class="icon-btn mobile-only">☰</button>
+        <button id="mainMenuBtn" class="icon-btn mobile-only">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
         <div class="logo">Varta</div>
-        <button id="addContactBtn" class="icon-btn">+</button>
+        <button id="addContactBtn" class="icon-btn">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </button>
       </div>
 
       <div id="conversationList" class="conversation-list"></div>
@@ -48,7 +62,10 @@
         </button>
 
         <div class="chat-user" id="headerProfileBtn">
-          <img id="chatAvatar" alt="avatar" />
+          <div class="avatar-container">
+            <img id="chatAvatar" alt="avatar" />
+            <span class="status-dot online"></span>
+          </div>
 
           <div class="chat-user-info">
             <span id="chatUsername">User Name</span>
