@@ -73,7 +73,7 @@ export async function getMessages(
         ${cursor ? "AND created_at < ?" : ""}
         ORDER BY created_at DESC 
         LIMIT 50`,
-        [uuidToBuffer(currentUserId), uuidToBuffer(conversationId), cursor]
+        [uuidToBuffer(currentUserId), uuidToBuffer(conversationId)]
     );
     return rows.reverse().map((row) => ({
         id: bufferToUuid(row.id),

@@ -8,7 +8,7 @@ export function authenticate(req, res, next) {
         }
 
         const token = authHeader.split(" ")[1];
-        const userId = verifyAccessToken(token);
+        const { userId } = verifyAccessToken(token);
 
         req.user = { id: userId };
         
