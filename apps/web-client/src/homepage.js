@@ -1,7 +1,11 @@
 "use strict";
 
 // CONFIG
-const SERVER_URL = "https://varta-0w6d.onrender.com";
+// Automatically switch between local and live server
+const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+const SERVER_URL = isLocalhost
+    ? "http://localhost:3000"
+    : "https://varta-0w6d.onrender.com";
 
 let accessToken = sessionStorage.getItem("accessToken");
 let refreshToken = localStorage.getItem("refreshToken");
@@ -15,6 +19,7 @@ let ws = null;
 let currentConversationId = null;
 let currentReceiverId = null;
 let currentUserId = null;
+let oldestMessageTimestamp = null;
 
 // DOM
 const app = document.querySelector(".app");
@@ -66,6 +71,24 @@ function openChat() {
 backBtn.addEventListener("click", () => {
     document.querySelector(".app").classList.remove("chat-active");
 });
+
+messagesDiv.addEventListener("scroll", async () => {
+    if (messagesDiv.scrollTop === 0 && oldestMessageTimestamp && currentConversationId) {
+        const moreMessages = await apiFetch(`/messages/${currentConversationId}?cursor=${oldestMessageTimestamp}`);
+
+        if (moreMessages && moreMessages.length > 0) {
+            oldestMessageTimestamp = moreMessages[0].created_at;
+            const previousScrollHeight = messagesDiv.scrollHeight;
+
+            moreMessages.reverse().forEach(msg => {
+                const el = createMessageElement(msg);
+                messagesDiv.prepend(el);
+            });
+            messagesDiv.scrollTop = messagesDiv.scrollHeight - previousScrollHeight;
+        }
+    }
+});
+
 // TOKEN MANAGEMENT
 async function refreshAccessToken() {
     if (!refreshToken) {
@@ -228,9 +251,11 @@ async function openConversation(conv) {
                 <p style="font-size: 12px;">Send a message to start the conversation.</p>
             </div>
         `;
+        oldestMessageTimestamp = null;
         return;
     }
 
+    oldestMessageTimestamp = messages[0].created_at;
     messages.forEach(msg => renderMessage(msg, false));
     if (messagesDiv.lastElementChild) {
         messagesDiv.lastElementChild.scrollIntoView({ behavior: "auto" });
@@ -238,19 +263,23 @@ async function openConversation(conv) {
 }
 
 // RENDER MESSAGE
-function renderMessage(msg, smoothScroll = true) {
+function createMessageElement(msg) {
     const el = document.createElement("div");
-
-    const isSender = msg.sender_id === currentUserId || msg.senderId === currentUserId || msg.is_sender === true;
+    const isSender = msg.sender_id === currentUserId || msg.senderId === currentUserId;
 
     el.className = isSender ? "message sent" : "message received";
     el.textContent = msg.text_content || msg.content;
+    return el;
+}
 
+function renderMessage(msg, smoothScroll = true) {
+    const el = createMessageElement(msg);
     messagesDiv.appendChild(el);
 
-    if (smoothScroll && messagesDiv.lastElementChild) {
-        messagesDiv.lastElementChild?.scrollIntoView({ behavior: "smooth" });
+    if (smoothScroll) {
+        el.scrollIntoView({ behavior: "smooth", block: "end" });
     }
+    return el;
 }
 
 // SEND MESSAGE
@@ -311,7 +340,8 @@ function connectWebSocket() {
         const data = JSON.parse(event.data);
 
         if (data.type === "new_message") {
-            if (data.conversationId === currentConversationId) {
+            const isNotMe = data.senderId !== currentUserId;
+            if (data.conversationId === currentConversationId && isNotMe) {
                 renderMessage(data, true);
             }
         } else if (data.type === "user_status") {

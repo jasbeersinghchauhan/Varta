@@ -6,7 +6,11 @@ const SECURITY_CONFIG = {
   MAX_NAME_LENGTH: 80,
 };
 
-const SERVER_URL = "https://varta-0w6d.onrender.com";
+// Automatically switch between local and live server
+const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+const SERVER_URL = isLocalhost
+  ? "http://localhost:3000"
+  : "https://varta-0w6d.onrender.com";
 
 let accessToken = sessionStorage.getItem("accessToken");
 let refreshToken = localStorage.getItem("refreshToken");
@@ -136,7 +140,7 @@ async function refreshAccessToken() {
   let data = {};
   try {
     data = await response.json();
-  } catch {}
+  } catch { }
 
   accessToken = data.accessToken;
   sessionStorage.setItem("accessToken", accessToken);
