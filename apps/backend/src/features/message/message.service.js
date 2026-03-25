@@ -59,6 +59,12 @@ export async function getMessages(
     currentUserId,
     cursor = null,
 ) {
+    const queryParams = [uuidToBuffer(currentUserId), uuidToBuffer(conversationId)];
+
+    if (cursor) {
+        queryParams.push(cursor);
+    }
+
     const rows = await query(
         `SELECT 
             id, 
@@ -73,7 +79,7 @@ export async function getMessages(
         ${cursor ? "AND created_at < ?" : ""}
         ORDER BY created_at DESC 
         LIMIT 50`,
-        [uuidToBuffer(currentUserId), uuidToBuffer(conversationId)]
+        queryParams
     );
     return rows.reverse().map((row) => ({
         id: bufferToUuid(row.id),

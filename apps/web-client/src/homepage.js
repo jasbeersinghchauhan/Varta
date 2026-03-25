@@ -2,7 +2,9 @@
 
 // CONFIG
 // Automatically switch between local and live server
-const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+const isLocalhost =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1";
 const SERVER_URL = isLocalhost
     ? "http://localhost:3000"
     : "https://varta-0w6d.onrender.com";
@@ -51,7 +53,6 @@ const confirmAddContact = document.querySelector("#confirmAddContact");
 
 const globalLoader = document.querySelector("#globalLoader");
 
-
 sendBtn.disabled = true;
 
 function showLoader() {
@@ -72,19 +73,51 @@ backBtn.addEventListener("click", () => {
     document.querySelector(".app").classList.remove("chat-active");
 });
 
+let isFetchingOldMessages = false;
 messagesDiv.addEventListener("scroll", async () => {
-    if (messagesDiv.scrollTop === 0 && oldestMessageTimestamp && currentConversationId) {
-        const moreMessages = await apiFetch(`/messages/${currentConversationId}?cursor=${oldestMessageTimestamp}`);
+    if (
+        messagesDiv.scrollTop === 0 &&
+        oldestMessageTimestamp &&
+        currentConversationId &&
+        !isFetchingOldMessages
+    ) {
+        isFetchingOldMessages = true;
 
-        if (moreMessages && moreMessages.length > 0) {
-            oldestMessageTimestamp = moreMessages[0].created_at;
-            const previousScrollHeight = messagesDiv.scrollHeight;
+        const loaderEl = document.createElement("div");
+        loaderEl.id = "historyLoader";
+        loaderEl.innerHTML = `Loading older messages...`;
+        loaderEl.style.textAlign = "center";
+        loaderEl.style.padding = "10px";
+        loaderEl.style.fontSize = "12px";
+        loaderEl.style.color = "var(--text-muted)";
+        messagesDiv.prepend(loaderEl);
 
-            moreMessages.reverse().forEach(msg => {
-                const el = createMessageElement(msg);
-                messagesDiv.prepend(el);
-            });
-            messagesDiv.scrollTop = messagesDiv.scrollHeight - previousScrollHeight;
+        try {
+            const moreMessages = await apiFetch(
+                `/messages/${currentConversationId}?cursor=${oldestMessageTimestamp}`,
+            );
+
+            if (document.getElementById("historyLoader")) {
+                loaderEl.remove();
+            }
+
+            if (moreMessages && moreMessages.length > 0) {
+                oldestMessageTimestamp = moreMessages[0].created_at;
+                const previousScrollHeight = messagesDiv.scrollHeight;
+
+                moreMessages.reverse().forEach((msg) => {
+                    const el = createMessageElement(msg);
+                    messagesDiv.prepend(el);
+                });
+                messagesDiv.scrollTop = messagesDiv.scrollHeight - previousScrollHeight;
+            }
+        } catch (error) {
+            console.error("Failed to fetch older messages:", error);
+            if (document.getElementById("historyLoader")) {
+                loaderEl.remove();
+            }
+        } finally {
+            isFetchingOldMessages = false;
         }
     }
 });
@@ -174,7 +207,7 @@ async function loadUserProfile() {
 
     const avatar = user.avatar_url || "/public/default-avatar.png";
 
-    const firstName = user.username.split(' ')[0];
+    const firstName = user.username.split(" ")[0];
     chatUsername.textContent = `Welcome, ${firstName}`;
     chatUserEmail.textContent = "Select a conversation to start messaging";
     chatAvatar.src = "/public/varta-logo.svg";
@@ -201,6 +234,8 @@ async function loadConversations() {
         const item = document.createElement("div");
         item.className = "conversation";
 
+        item.dataset.user_id = conv.user_id;
+
         const avatar = conv.avatar_url || "/public/default-avatar.svg";
         const statusClass = conv.is_online ? "online" : "offline";
         item.innerHTML = `
@@ -226,7 +261,7 @@ async function loadConversations() {
 // OPEN CONVERSATION
 async function openConversation(conv) {
     messageInput.disabled = false;
-    messageInput.placeholder = "Type a message..."
+    messageInput.placeholder = "Type a message...";
 
     currentConversationId = conv.id;
     currentReceiverId = conv.user_id;
@@ -234,6 +269,11 @@ async function openConversation(conv) {
     chatUsername.textContent = conv.username;
     chatUserEmail.textContent = conv.email || "";
     chatAvatar.src = conv.avatar_url || "/public/default-avatar.svg";
+
+    const headerStatus = document.querySelector("#chatHeaderStatusDot");
+    if (headerStatus) {
+        headerStatus.className = `status-dot ${conv.is_online ? "online" : "offline"}`;
+    }
 
     messagesDiv.innerHTML = `<div style="text-align:center; padding: 20px; color: var(--text-muted); font-size: 14px;">
                                 Loading messages...
@@ -256,7 +296,7 @@ async function openConversation(conv) {
     }
 
     oldestMessageTimestamp = messages[0].created_at;
-    messages.forEach(msg => renderMessage(msg, false));
+    messages.forEach((msg) => renderMessage(msg, false));
     if (messagesDiv.lastElementChild) {
         messagesDiv.lastElementChild.scrollIntoView({ behavior: "auto" });
     }
@@ -265,7 +305,10 @@ async function openConversation(conv) {
 // RENDER MESSAGE
 function createMessageElement(msg) {
     const el = document.createElement("div");
-    const isSender = msg.sender_id === currentUserId || msg.senderId === currentUserId;
+    const isSender =
+        msg.is_sender === true ||
+        msg.sender_id === currentUserId ||
+        msg.senderId === currentUserId;
 
     el.className = isSender ? "message sent" : "message received";
     el.textContent = msg.text_content || msg.content;
@@ -296,13 +339,16 @@ async function sendMessage() {
     const payload = {
         type: "send_message",
         to: currentReceiverId,
-        content: text
+        content: text,
     };
 
-    renderMessage({
-        is_sender: true,
-        content: text
-    }, true);
+    renderMessage(
+        {
+            is_sender: true,
+            content: text,
+        },
+        true,
+    );
 
     ws.send(JSON.stringify(payload));
 
@@ -345,7 +391,22 @@ function connectWebSocket() {
                 renderMessage(data, true);
             }
         } else if (data.type === "user_status") {
-            loadConversations();
+            const convItem = document.querySelector(
+                `.conversation[data-user-id=${data.user_id}]`,
+            );
+            if (convItem) {
+                const statusDot = convItem.querySelector(".status-dot");
+                if (statusDot) {
+                    statusDot.className = `status-dot ${data.is_online ? "online" : "offline"}`;
+                }
+            }
+
+            if (currentConversationId === data.user_id) {
+                const headerStatus = document.querySelector("#chatHeaderStatusDot");
+                if (headerStatus) {
+                    headerStatus.className = `status-dot ${data.is_online ? "online" : "offline"}`;
+                }
+            }
         } else if (data.type === "error") {
             console.error("Server returned an error:", data.message);
         }
