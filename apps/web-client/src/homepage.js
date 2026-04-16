@@ -13,7 +13,7 @@ let accessToken = sessionStorage.getItem("accessToken");
 let refreshToken = localStorage.getItem("refreshToken");
 
 if (!accessToken) {
-    window.location.href = "/index.html";
+    window.location.replace("/index.html");
 }
 
 let ws = null;
@@ -27,6 +27,7 @@ let oldestMessageTimestamp = null;
 const app = document.querySelector(".app");
 const backBtn = document.querySelector("#backBtn");
 const conversationList = document.querySelector("#conversationList");
+const logoutBtn = document.querySelector("#logoutBtn");
 
 const chatAvatar = document.querySelector("#chatAvatar");
 const chatUsername = document.querySelector("#chatUsername");
@@ -53,6 +54,16 @@ const confirmAddContact = document.querySelector("#confirmAddContact");
 
 const globalLoader = document.querySelector("#globalLoader");
 
+const mainMenuBtn = document.querySelector("#mainMenuBtn");
+const headerProfileBtn = document.querySelector("#headerProfileBtn");
+
+const contactMenu = document.querySelector("#contactMenu");
+const contactProfileModal = document.querySelector("#contactProfileModal");
+const closeContactProfile = document.querySelector("#closeContactProfile");
+const contactProfileAvatar = document.querySelector("#contactProfileAvatar");
+const contactProfileName = document.querySelector("#contactProfileName");
+const contactProfileEmail = document.querySelector("#contactProfileEmail");
+
 sendBtn.disabled = true;
 
 function showLoader() {
@@ -66,11 +77,20 @@ function hideLoader() {
 function openChat() {
     if (window.innerWidth <= 900) {
         app.classList.add("chat-active");
+        // Push a fake state to the browser history so the back button has something to pop
+        history.pushState({ chatOpen: true }, "");
     }
 }
 
 backBtn.addEventListener("click", () => {
-    document.querySelector(".app").classList.remove("chat-active");
+    history.back();
+});
+
+// Intercept browser back button
+window.addEventListener("popstate", () => {
+    if (app.classList.contains("chat-active")) {
+        app.classList.remove("chat-active");
+    }
 });
 
 let isFetchingOldMessages = false;
@@ -125,7 +145,7 @@ messagesDiv.addEventListener("scroll", async () => {
 // TOKEN MANAGEMENT
 async function refreshAccessToken() {
     if (!refreshToken) {
-        window.location.href = "/index.html";
+        window.location.replace("/index.html");
         return null;
     }
 
@@ -150,7 +170,7 @@ async function refreshAccessToken() {
     } catch (err) {
         sessionStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
-        window.location.href = "/index.html";
+        window.location.replace("/index.html");
         return null;
     }
 }
@@ -205,7 +225,7 @@ async function loadUserProfile() {
 
     currentUserId = user.id;
 
-    const avatar = user.avatar_url || "/public/default-avatar.png";
+    const avatar = user.avatar_url || "/public/default-avatar.svg";
 
     const firstName = user.username.split(" ")[0];
     chatUsername.textContent = `Welcome, ${firstName}`;
@@ -453,12 +473,55 @@ confirmAddContact.addEventListener("click", async () => {
 });
 
 // PROFILE
-profileBtn.addEventListener("click", () => {
+mainMenuBtn.addEventListener("click", () => {
     profileModal.classList.remove("hidden");
 });
 
 closeProfile.addEventListener("click", () => {
     profileModal.classList.add("hidden");
+});
+
+function toggleContactMenu(e) {
+    e.stopPropagation();
+    if (!currentConversationId) return;
+    contactMenu.classList.toggle("hidden");
+}
+
+profileBtn.addEventListener("click", toggleContactMenu);
+headerProfileBtn.addEventListener("click", () => {
+    if (!currentConversationId) return;
+
+    contactProfileAvatar.src = chatAvatar.src;
+    contactProfileName.textContent = chatUsername.textContent;
+    contactProfileEmail.textContent = chatUserEmail.textContent;
+
+    contactProfileModal.classList.remove("hidden");
+});
+
+document.addEventListener("click", (e) => {
+    if (!contactMenu.contains(e.target) && !profileBtn.contains(e.target)) {
+        contactMenu.classList.add("hidden");
+    }
+});
+
+document.querySelector("#viewContactProfileBtn").addEventListener("click", () => {
+    contactMenu.classList.add("hidden");
+    
+    contactProfileAvatar.src = chatAvatar.src;
+    contactProfileName.textContent = chatUsername.textContent;
+    contactProfileEmail.textContent = chatUserEmail.textContent;
+    contactProfileModal.classList.remove("hidden");
+});
+
+closeContactProfile.addEventListener("click", () => {
+    contactProfileModal.classList.add("hidden");
+});
+
+// TODO: clear chat, delete contact 
+
+document.querySelector("#viewMediaBtn").addEventListener("click", () => {
+    contactMenu.classList.add("hidden");
+    alert("Media gallery coming soon!");
 });
 
 function setInitialState() {
@@ -478,6 +541,27 @@ function setInitialState() {
         </div>
     `;
 }
+
+logoutBtn?.addEventListener("click", async () => {
+    showLoader();
+    try {
+        await fetch(`${SERVER_URL}/logout`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({ refreshToken })
+        });
+    } catch(e) {
+        console.error("Logout API failed", e);
+    }
+    accessToken = null;
+    refreshToken = null;
+    sessionStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+    window.location.replace("/index.html");
+});
 
 // INIT
 async function initApp() {

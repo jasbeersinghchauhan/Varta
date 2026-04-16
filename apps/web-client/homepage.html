@@ -30,7 +30,7 @@
     <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
-        <button id="mainMenuBtn" class="icon-btn mobile-only">
+        <button id="mainMenuBtn" class="icon-btn">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round">
             <line x1="3" y1="12" x2="21" y2="12"></line>
@@ -104,9 +104,24 @@
 
   <!-- CONTACT MENU -->
   <div id="contactMenu" class="contact-menu hidden">
-    <button id="viewProfileOption">View Profile</button>
+    <button id="viewContactProfileBtn">View Profile</button>
+    <button id="viewMediaBtn">View Media</button>
+    <button id="clearChatBtn" class="danger">Clear Chat</button>
+    <button id="deleteContactBtn" class="danger">Delete Contact</button>
+  </div>
 
-    <button id="deleteContactOption" class="danger">Delete Contact</button>
+  <div id="contactProfileModal" class="modal hidden">
+    <div class="modal-content profile">
+      <img id="contactProfileAvatar" />
+
+      <h3 id="contactProfileName"></h3>
+
+      <p id="contactProfileEmail"></p>
+
+      <div class="modal-actions profile-actions">
+        <button id="closeContactProfile" style="width: 100%;">Close</button>
+      </div>
+    </div>
   </div>
 
   <!-- ADD CONTACT MODAL -->
@@ -133,7 +148,10 @@
 
       <p id="profileEmail"></p>
 
-      <button id="closeProfile">Close</button>
+      <div class="modal-actions profile-actions">
+        <button id="closeProfile">Close</button>
+        <button id="logoutBtn">Logout</button>
+      </div>
     </div>
   </div>
 
