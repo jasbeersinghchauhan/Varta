@@ -11,6 +11,7 @@
   --msg-received: #FFFFFF;
   --msg-bg: #EEF3F9;
   --input-bg: #F7FAFC;
+  --close-bg: #bbe3da;
 }
 
 * {
@@ -44,6 +45,26 @@ body {
   overflow: hidden;
 }
 
+.profile-actions {
+  width: 100%;
+  margin-top: 16px;
+  display: flex;
+}
+
+.profile-actions button {
+  flex: 1;
+}
+
+#closeProfile {
+  background: var(--close-bg);
+  color: var(--text-main);
+}
+
+#logoutBtn {
+  background: #EF4444;
+  color: #ffffff;
+}
+
 /* SIDEBAR */
 .sidebar {
   width: clamp(280px, 22vw, 340px);
@@ -60,6 +81,9 @@ body {
   justify-content: space-between;
   padding: 10px 16px;
   height: 60px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  position: relative;
 }
 
 .logo {
@@ -127,7 +151,7 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: var(--bg-surface);
+  background: var(--bg-body);
   height: 100dvh;
 }
 
@@ -314,12 +338,12 @@ body {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.message.sent + .message.sent {
+.message.sent+.message.sent {
   border-top-right-radius: 4px;
   margin-top: -6px;
 }
 
-.message.received + .message.received {
+.message.received+.message.received {
   border-top-left-radius: 4px;
   margin-top: -6px;
 }
@@ -408,7 +432,7 @@ body {
 .contact-menu {
   position: absolute;
   right: 20px;
-  top: 60px;
+  top: 65px;
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -430,6 +454,14 @@ body {
 
 .contact-menu button:hover {
   background: var(--input-bg);
+}
+
+.contact-menu button.danger {
+  color: #EF4444;
+}
+
+.contact-menu button.danger:hover {
+  background: #fee2e2;
 }
 
 .modal {
@@ -514,6 +546,12 @@ body {
     z-index: 10;
     background: var(--bg-surface);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .sidebar-header .logo {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
   }
 
   .chat {

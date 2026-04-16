@@ -15,19 +15,30 @@ const SERVER_URL = isLocalhost
 let accessToken = sessionStorage.getItem("accessToken");
 let refreshToken = localStorage.getItem("refreshToken");
 
+let pendingVerificationEmail = "";
+const urlParams = new URLSearchParams(window.location.search);
+const resetToken = urlParams.get("token");
+
 // DOM
 const loginPanel = document.querySelector("#js-login-panel");
 const registerPanel = document.querySelector("#js-register-panel");
 const forgotPanel = document.querySelector("#js-forgot-panel");
+const verifyPanel = document.querySelector("#js-verify-panel");
+const resetPanel = document.querySelector("#js-reset-panel");
 
 const loginForm = document.querySelector("#js-login-form");
 const registerForm = document.querySelector("#js-register-form");
 const forgotForm = document.querySelector("#js-forgot-form");
+const verifyForm = document.querySelector("#js-verify-form");
+const resetForm = document.querySelector("#js-reset-form");
 
+const resendCodeBtn = document.querySelector("#js-resend-code");
 const showRegisterBtn = document.querySelector("#js-show-register");
 const showLoginBtn = document.querySelector("#js-show-login");
 const showForgotBtn = document.querySelector("#js-show-forgot");
 const backToLoginBtn = document.querySelector("#js-back-to-login");
+const backToLoginFromVerifyBtn = document.querySelector("#js-back-to-login-from-verify");
+const backToLoginFromResetBtn = document.querySelector("#js-back-to-login-from-reset");
 
 const loader = document.querySelector("#globalLoader");
 
@@ -41,7 +52,7 @@ function hideLoader() {
 
 // PANEL SWITCHING
 function switchPanel(panel) {
-  [loginPanel, registerPanel, forgotPanel].forEach(p =>
+  [loginPanel, registerPanel, forgotPanel, verifyPanel, resetPanel].forEach(p =>
     p.classList.remove("is-active")
   );
 
@@ -52,7 +63,8 @@ showRegisterBtn?.addEventListener("click", () => switchPanel(registerPanel));
 showLoginBtn?.addEventListener("click", () => switchPanel(loginPanel));
 showForgotBtn?.addEventListener("click", () => switchPanel(forgotPanel));
 backToLoginBtn?.addEventListener("click", () => switchPanel(loginPanel));
-
+backToLoginFromVerifyBtn?.addEventListener("click", () => switchPanel(loginPanel));
+backToLoginFromResetBtn?.addEventListener("click", () => switchPanel(loginPanel));
 
 // HELPERS
 const sanitize = value => value.trim();
@@ -182,7 +194,7 @@ async function restoreSession() {
       await refreshAccessToken();
 
     if (accessToken)
-      window.location.href = "/homepage.html";
+      window.location.replace("/homepage.html");
   } catch {
     await logout();
   }
@@ -190,6 +202,8 @@ async function restoreSession() {
 
 document.addEventListener("DOMContentLoaded", () => {
   restoreSession();
+  if (resetToken && resetPanel)
+    switchPanel(resetPanel);
 });
 
 //API HELPER
@@ -268,6 +282,21 @@ async function register(username, email, password) {
   });
 }
 
+// VERIFY API
+async function verifyEmail(email, otp) {
+  return apiRequest("/verify-email", "POST", { email, otp });
+}
+
+// RESEND OTP API
+async function resendVerification(email) {
+  return apiRequest("/resend-verification", "POST", { email });
+}
+
+// RESET PASSWORD API
+async function resetPassword(token, newPassword) {
+  return apiRequest("/reset-password", "POST", { token, newPassword });
+}
+
 // LOGIN FORM
 loginForm?.addEventListener("submit", async e => {
   e.preventDefault();
@@ -307,7 +336,7 @@ loginForm?.addEventListener("submit", async e => {
     showLoader();
     await login(cleanEmail, cleanPassword);
 
-    window.location.href = "/homepage.html";
+    window.location.replace("/homepage.html");
   } catch (err) {
     setError(password, err.message);
   } finally {
@@ -370,7 +399,9 @@ registerForm?.addEventListener("submit", async (e) => {
   try {
     showLoader();
     await register(cleanName, cleanEmail, cleanPassword);
-    switchPanel(loginPanel);
+
+    pendingVerificationEmail = cleanEmail;
+    switchPanel(verifyPanel);
   } catch (err) {
     setError(email, err.message || "Registration failed.");
   } finally {
@@ -435,4 +466,162 @@ registerForm?.password?.addEventListener("input", () => {
   else if (!result.noSpaces)
     setError(registerForm.password, "Spaces are not allowed.");
   else clearError(registerForm.password);
+});
+
+// REAL-TIME PASSWORD CHECK (Reset Form)
+resetForm?.new_password?.addEventListener("input", () => {
+  const result = validatePassword(resetForm.new_password.value);
+
+  if (!resetForm.new_password.value) {
+    clearError(resetForm.new_password);
+    return;
+  }
+
+  if (!result.minLength)
+    setError(resetForm.new_password, "Minimum 8 characters required.");
+  else if (!result.hasUpper)
+    setError(resetForm.new_password, "Include at least one uppercase letter.");
+  else if (!result.hasLower)
+    setError(resetForm.new_password, "Include at least one lowercase letter.");
+  else if (!result.hasNumber)
+    setError(resetForm.new_password, "Include at least one number.");
+  else if (!result.hasSymbol)
+    setError(resetForm.new_password, "Include at least one symbol.");
+  else if (!result.noSpaces)
+    setError(resetForm.new_password, "Spaces are not allowed.");
+  else clearError(resetForm.new_password);
+});
+
+
+// OTP BOX BEHAVIOR
+const otpBoxes = document.querySelectorAll(".otp-box");
+
+otpBoxes.forEach((box, index) => {
+  box.addEventListener("input", (e) => {
+    e.target.value = e.target.value.replace(/[^0-9]/g, "");
+    if (e.target.value !== "" && index < otpBoxes.length - 1) {
+      otpBoxes[index + 1].focus();
+    }
+  });
+
+  box.addEventListener("keydown", (e) => {
+    if (e.key === "Backspace" && e.target.value === "" && index > 0) {
+      otpBoxes[index - 1].focus();
+    }
+  });
+
+  box.addEventListener("paste", (e) => {
+    e.preventDefault();
+    const pasteData = e.clipboardData.getData("text").replace(/[^0-9]/g, "").slice(0, 6);
+
+    pasteData.split("").forEach((char, i) => {
+      if (otpBoxes[i]) otpBoxes[i].value = char;
+    });
+
+    const focusIndex = Math.min(pasteData.length, 5);
+    otpBoxes[focusIndex].focus();
+  });
+});
+
+
+// VERIFY FORM SUBMIT
+verifyForm?.addEventListener("submit", async e => {
+  e.preventDefault();
+  const btn = verifyForm.querySelector("button");
+  const errorDisplay = document.querySelector("#js-otp-error");
+
+  const otpValue = Array.from(otpBoxes).map(box => box.value).join("");
+
+  errorDisplay.textContent = "";
+  otpBoxes.forEach(box => {
+    box.classList.remove("is-invalid");
+    box.classList.add("is-valid");
+  });
+
+  if (otpValue.length !== 6) {
+    errorDisplay.textContent = "Please enter a valid 6-digit code.";
+    otpBoxes.forEach(box => {
+      box.classList.add("is-invalid");
+      box.classList.remove("is-valid");
+    });
+    return;
+  }
+
+  btn.disabled = true;
+  try {
+    showLoader();
+    await verifyEmail(pendingVerificationEmail, otpValue);
+
+    switchPanel(loginPanel);
+    alert("Account verified successfully! You can now log in.");
+  } catch (err) {
+    errorDisplay.textContent = err.message || "Verification failed. Please try again.";
+    otpBoxes.forEach(box => {
+      box.classList.add("is-invalid");
+      box.classList.remove("is-valid");
+    });
+  } finally {
+    hideLoader();
+    btn.disabled = false;
+  }
+});
+
+// RESEND CODE
+resendCodeBtn?.addEventListener("click", async e => {
+  e.preventDefault();
+  if (!pendingVerificationEmail) return;
+
+  try {
+    showLoader();
+    await resendVerification(pendingVerificationEmail);
+    alert("A new verification code has been sent to your email.");
+  } catch (err) {
+    alert(err.message || "Unable to resend code.");
+  } finally {
+    hideLoader();
+  }
+});
+
+// RESET PASSWORD FORM SUBMIT
+resetForm?.addEventListener("submit", async e => {
+  e.preventDefault();
+  const btn = resetForm.querySelector("button");
+  const newPassword = resetForm.new_password;
+  const confirmPassword = resetForm.confirm_new_password;
+
+  clearError(newPassword);
+  clearError(confirmPassword);
+
+  const cleanPassword = newPassword.value;
+  let isValid = true;
+
+  const result = validatePassword(cleanPassword);
+  if (!result.isValid) {
+    setError(newPassword, "Password does not meet requirements.");
+    isValid = false;
+  }
+
+  if (cleanPassword !== confirmPassword.value) {
+    setError(confirmPassword, "Passwords do not match.");
+    isValid = false;
+  }
+
+  if (!isValid) return;
+
+  btn.disabled = true;
+  try {
+    showLoader();
+    await resetPassword(resetToken, cleanPassword);
+
+    // Clear the token from the URL bar so it doesn't linger
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    switchPanel(loginPanel);
+    alert("Password updated successfully! Please log in.");
+  } catch (err) {
+    setError(newPassword, err.message || "Failed to reset password.");
+  } finally {
+    hideLoader();
+    btn.disabled = false;
+  }
 });
