@@ -50,6 +50,17 @@ function hideLoader() {
   loader.classList.remove("active");
 }
 
+function showMessage(message, type = "info") {
+  const el = document.querySelector("#globalMessage");
+
+  el.textContent = message;
+  el.className = `global-message ${type} show`;
+
+  setTimeout(() => {
+    el.classList.remove("show");
+  }, 3000);
+}
+
 // PANEL SWITCHING
 function switchPanel(panel) {
   [loginPanel, registerPanel, forgotPanel, verifyPanel, resetPanel].forEach(p =>
@@ -200,10 +211,26 @@ async function restoreSession() {
   }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+async function validateResetToken(token) {
+  try {
+    await apiRequest("/validate-reset-token", "POST", { token });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
   restoreSession();
-  if (resetToken && resetPanel)
-    switchPanel(resetPanel);
+  if (resetToken) {
+    const valid = await validateResetToken(resetToken);
+    if (valid) {
+      switchPanel(resetPanel);
+    } else {
+      showMessage("Reset link is invalid or expired.", "error");
+      switchPanel(forgotPanel);
+    }
+  }
 });
 
 //API HELPER
@@ -434,6 +461,7 @@ forgotForm?.addEventListener("submit", async e => {
     await apiRequest("/forgot-password", "POST", {
       email: cleanEmail
     });
+    showMessage("If an account exists, a reset link has been sent to your email.", "success");
     switchPanel(loginPanel);
   } catch (err) {
     setError(email, err.message || "Unable to send reset link.");
@@ -553,7 +581,7 @@ verifyForm?.addEventListener("submit", async e => {
     await verifyEmail(pendingVerificationEmail, otpValue);
 
     switchPanel(loginPanel);
-    alert("Account verified successfully! You can now log in.");
+    showMessage("Account verified successfully! You can now log in.", "success");
   } catch (err) {
     errorDisplay.textContent = err.message || "Verification failed. Please try again.";
     otpBoxes.forEach(box => {
@@ -574,9 +602,9 @@ resendCodeBtn?.addEventListener("click", async e => {
   try {
     showLoader();
     await resendVerification(pendingVerificationEmail);
-    alert("A new verification code has been sent to your email.");
+    showMessage("A new verification code has been sent to your email.");
   } catch (err) {
-    alert(err.message || "Unable to resend code.");
+    showMessage(err.message || "Unable to resend code.", "error");
   } finally {
     hideLoader();
   }
@@ -617,9 +645,17 @@ resetForm?.addEventListener("submit", async e => {
     window.history.replaceState({}, document.title, window.location.pathname);
 
     switchPanel(loginPanel);
-    alert("Password updated successfully! Please log in.");
+    showMessage("Password updated successfully! Please log in.", "success");
   } catch (err) {
-    setError(newPassword, err.message || "Failed to reset password.");
+    if (err.message.toLowerCase().includes("expired")) {
+      showMessage("Reset link expired. Please request a new one.");
+      switchPanel(forgotPanel);
+    } else if (err.message.toLowerCase().includes("invalid")) {
+      showMessage("Invalid reset link.", "error");
+      switchPanel(forgotPanel);
+    } else {
+      setError(newPassword, err.message);
+    }
   } finally {
     hideLoader();
     btn.disabled = false;
