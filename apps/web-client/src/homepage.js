@@ -12,7 +12,7 @@ const SERVER_URL = isLocalhost
 let accessToken = sessionStorage.getItem("accessToken");
 let refreshToken = localStorage.getItem("refreshToken");
 
-if (!accessToken) {
+if (!accessToken && !refreshToken) {
     window.location.replace("/index.html");
 }
 
@@ -22,6 +22,7 @@ let currentConversationId = null;
 let currentReceiverId = null;
 let currentUserId = null;
 let oldestMessageTimestamp = null;
+let isBulkLoading = false;
 
 // DOM
 const app = document.querySelector(".app");
@@ -102,6 +103,7 @@ messagesDiv.addEventListener("scroll", async () => {
         !isFetchingOldMessages
     ) {
         isFetchingOldMessages = true;
+        isBulkLoading = true;
 
         const loaderEl = document.createElement("div");
         loaderEl.id = "historyLoader";
@@ -110,10 +112,12 @@ messagesDiv.addEventListener("scroll", async () => {
         loaderEl.style.padding = "10px";
         loaderEl.style.fontSize = "12px";
         loaderEl.style.color = "var(--text-muted)";
+        const previousScrollHeight = messagesDiv.scrollHeight;
+
         messagesDiv.prepend(loaderEl);
 
         try {
-            const moreMessages = await apiFetch(
+            const moreMessages = await apiRequest(
                 `/messages/${currentConversationId}?cursor=${oldestMessageTimestamp}`,
             );
 
@@ -125,11 +129,17 @@ messagesDiv.addEventListener("scroll", async () => {
                 oldestMessageTimestamp = moreMessages[0].created_at;
                 const previousScrollHeight = messagesDiv.scrollHeight;
 
+                const fragment = document.createDocumentFragment();
+
                 moreMessages.reverse().forEach((msg) => {
                     const el = createMessageElement(msg);
-                    messagesDiv.prepend(el);
+                    fragment.appendChild(el);
                 });
-                messagesDiv.scrollTop = messagesDiv.scrollHeight - previousScrollHeight;
+                messagesDiv.prepend(fragment);
+
+                requestAnimationFrame(() => {
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight - previousScrollHeight;
+                });
             }
         } catch (error) {
             console.error("Failed to fetch older messages:", error);
@@ -138,6 +148,7 @@ messagesDiv.addEventListener("scroll", async () => {
             }
         } finally {
             isFetchingOldMessages = false;
+            isBulkLoading = false;
         }
     }
 });
@@ -176,7 +187,7 @@ async function refreshAccessToken() {
 }
 
 // API HELPER
-async function apiFetch(endpoint, options = {}, retry = true) {
+async function apiRequest(endpoint, options = {}, retry = true) {
     let response = await fetch(`${SERVER_URL}${endpoint}`, {
         ...options,
         headers: {
@@ -204,8 +215,7 @@ async function apiFetch(endpoint, options = {}, retry = true) {
     }
 
     if (!response.ok) {
-        console.error("API error:", response.status);
-        return null;
+        throw new Error(`API error: ${response.status}`);
     }
 
     const text = await response.text();
@@ -216,7 +226,7 @@ async function apiFetch(endpoint, options = {}, retry = true) {
 async function loadUserProfile() {
     showLoader();
 
-    const user = await apiFetch("/users/me");
+    const user = await apiRequest("/users/me");
 
     if (!user) {
         hideLoader();
@@ -244,9 +254,12 @@ async function loadConversations() {
     conversationList.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 14px;">
                                     Loading chats...
                                 </div>`;
-    const conversations = await apiFetch("/conversations");
+    const conversations = await apiRequest("/conversations");
 
-    if (!Array.isArray(conversations)) return;
+    if (!Array.isArray(conversations)) {
+        conversationList.innerHTML = "Failed to load chats";
+        return;
+    }
 
     conversationList.innerHTML = "";
 
@@ -299,7 +312,8 @@ async function openConversation(conv) {
                                 Loading messages...
                             </div>`;
 
-    const messages = await apiFetch(`/messages/${conv.id}`);
+    isBulkLoading = true;
+    const messages = await apiRequest(`/messages/${conv.id}`);
 
     messagesDiv.innerHTML = "";
 
@@ -312,14 +326,23 @@ async function openConversation(conv) {
             </div>
         `;
         oldestMessageTimestamp = null;
+        isBulkLoading = false;
         return;
     }
 
     oldestMessageTimestamp = messages[0].created_at;
-    messages.forEach((msg) => renderMessage(msg, false));
+    const fragment = document.createDocumentFragment();
+
+    messages.forEach((msg) => {
+        const el = createMessageElement(msg);
+        fragment.appendChild(el);
+    });
+
+    messagesDiv.appendChild(fragment);
     if (messagesDiv.lastElementChild) {
-        messagesDiv.lastElementChild.scrollIntoView({ behavior: "auto" });
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
+    isBulkLoading = false;
 }
 
 // RENDER MESSAGE
@@ -331,6 +354,11 @@ function createMessageElement(msg) {
         msg.senderId === currentUserId;
 
     el.className = isSender ? "message sent" : "message received";
+
+    if (!isBulkLoading) {
+        el.classList.add("animate");
+    }
+
     el.textContent = msg.text_content || msg.content;
     return el;
 }
@@ -340,7 +368,7 @@ function renderMessage(msg, smoothScroll = true) {
     messagesDiv.appendChild(el);
 
     if (smoothScroll) {
-        el.scrollIntoView({ behavior: "smooth", block: "end" });
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
     return el;
 }
@@ -352,7 +380,7 @@ async function sendMessage() {
     if (!text || !currentConversationId) return;
 
     if (!ws || ws.readyState !== 1) {
-        alert("Connecting..");
+        console.warn("Socket not ready");
         return;
     }
 
@@ -390,7 +418,7 @@ messageInput.addEventListener("keydown", (e) => {
 });
 
 // WEBSOCKET
-let reconnectattempts = 0;
+let reconnectAttempts = 0;
 
 function connectWebSocket() {
     const wsURL = SERVER_URL.replace(/^http/, "ws");
@@ -399,7 +427,7 @@ function connectWebSocket() {
 
     ws.onopen = () => {
         console.log("WebSocket connected");
-        reconnectattempts = 0;
+        reconnectAttempts = 0;
     };
 
     ws.onmessage = (event) => {
@@ -421,7 +449,7 @@ function connectWebSocket() {
                 }
             }
 
-            if (currentConversationId === data.user_id) {
+            if (currentConversationId === data.conversationId) {
                 const headerStatus = document.querySelector("#chatHeaderStatusDot");
                 if (headerStatus) {
                     headerStatus.className = `status-dot ${data.is_online ? "online" : "offline"}`;
@@ -436,13 +464,17 @@ function connectWebSocket() {
         console.log("WebSocket disconnected");
         if (event.code === 4001) {
             const newToken = await refreshAccessToken();
-            if (!newToken) return;
+            if (newToken) {
+                connectWebSocket();
+                return;
+            }
+            return;
         }
 
-        reconnectattempts++;
-        const delay = Math.min(1000 * Math.pow(2, reconnectattempts), 30000);
+        reconnectAttempts++;
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
         console.log(`Reconnecting in ${delay / 1000}s...`);
-        setTimeout(connectWebSocket, 3000);
+        setTimeout(connectWebSocket, delay);
     };
 }
 
@@ -460,7 +492,7 @@ confirmAddContact.addEventListener("click", async () => {
 
     if (!email) return;
 
-    const result = await apiFetch("/conversations", {
+    const result = await apiRequest("/conversations", {
         method: "POST",
         body: JSON.stringify({ email }),
     });
@@ -553,7 +585,7 @@ logoutBtn?.addEventListener("click", async () => {
             },
             body: JSON.stringify({ refreshToken })
         });
-    } catch(e) {
+    } catch (e) {
         console.error("Logout API failed", e);
     }
     accessToken = null;
