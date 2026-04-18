@@ -1,7 +1,7 @@
 // CONFIG
 const SECURITY_CONFIG = {
   MIN_PASSWORD_LENGTH: 8,
-  MAX_PASSWORD_LENGTH: 14,
+  MAX_PASSWORD_LENGTH: 64,
   MAX_EMAIL_LENGTH: 254,
   MAX_NAME_LENGTH: 80,
 };
@@ -15,22 +15,26 @@ const SERVER_URL = isLocalhost
 let accessToken = sessionStorage.getItem("accessToken");
 let refreshToken = localStorage.getItem("refreshToken");
 
-let pendingVerificationEmail = "";
 const urlParams = new URLSearchParams(window.location.search);
 const resetToken = urlParams.get("token");
+const verifyToken = urlParams.get("verifyToken");
 
 // DOM
-const loginPanel = document.querySelector("#js-login-panel");
-const registerPanel = document.querySelector("#js-register-panel");
-const forgotPanel = document.querySelector("#js-forgot-panel");
-const verifyPanel = document.querySelector("#js-verify-panel");
-const resetPanel = document.querySelector("#js-reset-panel");
+const panels = {
+  login: document.querySelector("#js-login-panel"),
+  register: document.querySelector("#js-register-panel"),
+  forgot: document.querySelector("#js-forgot-panel"),
+  verify: document.querySelector("#js-verify-panel"),
+  reset: document.querySelector("#js-reset-panel"),
+};
 
-const loginForm = document.querySelector("#js-login-form");
-const registerForm = document.querySelector("#js-register-form");
-const forgotForm = document.querySelector("#js-forgot-form");
-const verifyForm = document.querySelector("#js-verify-form");
-const resetForm = document.querySelector("#js-reset-form");
+const forms = {
+  login: document.querySelector("#js-login-form"),
+  register: document.querySelector("#js-register-form"),
+  forgot: document.querySelector("#js-forgot-form"),
+  verify: document.querySelector("#js-verify-form"),
+  reset: document.querySelector("#js-reset-form"),
+};
 
 const resendCodeBtn = document.querySelector("#js-resend-code");
 const showRegisterBtn = document.querySelector("#js-show-register");
@@ -41,6 +45,7 @@ const backToLoginFromVerifyBtn = document.querySelector("#js-back-to-login-from-
 const backToLoginFromResetBtn = document.querySelector("#js-back-to-login-from-reset");
 
 const loader = document.querySelector("#globalLoader");
+const globalMessage = document.querySelector("#globalMessage");
 
 function showLoader() {
   loader.classList.add("active");
@@ -51,33 +56,34 @@ function hideLoader() {
 }
 
 function showMessage(message, type = "info") {
-  const el = document.querySelector("#globalMessage");
+  if (!globalMessage) return;
 
-  el.textContent = message;
-  el.className = `global-message ${type} show`;
+  globalMessage.textContent = message;
+  globalMessage.className = `global-message ${type} show`;
 
   setTimeout(() => {
-    el.classList.remove("show");
+    globalMessage.classList.remove("show");
   }, 3000);
 }
 
 // PANEL SWITCHING
 function switchPanel(panel) {
-  [loginPanel, registerPanel, forgotPanel, verifyPanel, resetPanel].forEach(p =>
+  Object.values(panels).forEach(p =>
     p.classList.remove("is-active")
   );
-
-  panel.classList.add("is-active");
+  if (panel)
+    panel.classList.add("is-active");
 }
 
-showRegisterBtn?.addEventListener("click", () => switchPanel(registerPanel));
-showLoginBtn?.addEventListener("click", () => switchPanel(loginPanel));
-showForgotBtn?.addEventListener("click", () => switchPanel(forgotPanel));
-backToLoginBtn?.addEventListener("click", () => switchPanel(loginPanel));
-backToLoginFromVerifyBtn?.addEventListener("click", () => switchPanel(loginPanel));
-backToLoginFromResetBtn?.addEventListener("click", () => switchPanel(loginPanel));
+// ATTACH PANEL NAVIGATION
+showRegisterBtn?.addEventListener("click", () => switchPanel(panels.register));
+showLoginBtn?.addEventListener("click", () => switchPanel(panels.login));
+showForgotBtn?.addEventListener("click", () => switchPanel(panels.forgot));
+backToLoginBtn?.addEventListener("click", () => switchPanel(panels.login));
+backToLoginFromVerifyBtn?.addEventListener("click", () => switchPanel(panels.login));
+backToLoginFromResetBtn?.addEventListener("click", () => switchPanel(panels.login));
 
-// HELPERS
+// FORM VALIDATION HELPERS
 const sanitize = value => value.trim();
 
 function setError(input, message) {
@@ -112,7 +118,7 @@ function validatePassword(password) {
   const hasUpper = /[A-Z]/.test(password);
   const hasLower = /[a-z]/.test(password);
   const hasNumber = /\d/.test(password);
-  const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+  const hasSymbol = /[^A-Za-z0-9\s]/.test(password);
   const noSpaces = !/\s/.test(password);
 
   const isValid =
@@ -134,6 +140,114 @@ function validatePassword(password) {
     hasSymbol,
     noSpaces,
   };
+}
+
+// PASSWORD UI VALIDATOR
+function handlePasswordValidation(inputElement) {
+  const value = inputElement.value;
+  if (!value) return clearError(inputElement);
+
+  const result = validatePassword(value);
+
+  if (!result.minLength) setError(inputElement, "Minimum 8 characters required.");
+  else if (!result.maxLength) setError(inputElement, "Maximum 14 characters allowed.");
+  else if (!result.hasUpper) setError(inputElement, "Include at least one uppercase letter.");
+  else if (!result.hasLower) setError(inputElement, "Include at least one lowercase letter.");
+  else if (!result.hasNumber) setError(inputElement, "Include at least one number.");
+  else if (!result.hasSymbol) setError(inputElement, "Include at least one symbol.");
+  else if (!result.noSpaces) setError(inputElement, "Spaces are not allowed.");
+  else clearError(inputElement);
+}
+
+// REAL-TIME PASSWORD LISTENERS
+forms.register?.password?.addEventListener("input", (e) => handlePasswordValidation(e.target));
+forms.reset?.new_password?.addEventListener("input", (e) => handlePasswordValidation(e.target));
+
+//API HELPER
+async function apiRequest(endpoint, method = "GET", body = null, retry = true) {
+  const options = {
+    method,
+    headers: {
+      "Content-Type": "application/json"
+    }
+  };
+
+  if (accessToken) {
+    options.headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  if (body) {
+    options.body = JSON.stringify(body);
+  }
+
+  let response;
+  try {
+    response = await fetch(`${SERVER_URL}${endpoint}`, options);
+  } catch {
+    throw new Error("Network error. Please check your connection.")
+  }
+
+  const isAuthRoute = ["/login", "/register"].includes(endpoint);
+
+  if (response.status === 401 && retry && !isAuthRoute) {
+    try {
+      await refreshAccessToken();
+      return apiRequest(endpoint, method, body, false);
+    } catch {
+      await logout();
+      throw new Error("Session expired. Please login again.");
+    }
+  }
+
+  const isJson = response.headers.get("Content-Type")?.includes("application/json");
+  let data = isJson ? await response.json() : {};
+
+  if (!response.ok) {
+    throw new Error(data.message || "Request failed. Please try again");
+  }
+
+  return data;
+}
+
+function startCooldown() {
+  const COOLDOWN_SECONDS = 60;
+  const btn = resendCodeBtn;
+
+  if (!btn) return;
+
+  const existingCooldown = sessionStorage.getItem("resendCooldownTime");
+  let timeLeft = COOLDOWN_SECONDS;
+
+  if (existingCooldown) {
+    const remainingMs = parseInt(existingCooldown) - Date.now();
+    if (remainingMs > 0) {
+      timeLeft = Math.ceil(remainingMs / 1000);
+    } else {
+      sessionStorage.removeItem("resendCooldownTime");
+    }
+  } else {
+    sessionStorage.setItem("resendCooldownTime", Date.now() + (COOLDOWN_SECONDS * 1000));
+  }
+
+  if (timeLeft <= 0) {
+    btn.disabled = false;
+    btn.textContent = "Resend Verification Email";
+    return;
+  }
+
+  btn.disabled = true;
+
+  const timer = setInterval(() => {
+    btn.textContent = `Resend available in ${timeLeft}s`;
+    timeLeft--;
+
+    if (timeLeft < 0) {
+      clearInterval(timer);
+      btn.disabled = false;
+      btn.textContent = "Resend Verification Email";
+      sessionStorage.removeItem("resendCooldownTime");
+    }
+  }, 1000);
 }
 
 async function refreshAccessToken() {
@@ -195,7 +309,7 @@ async function logout() {
   sessionStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
 
-  window.location.href = "/index.html";
+  window.location.replace("/index.html");
 }
 
 async function restoreSession() {
@@ -222,65 +336,33 @@ async function validateResetToken(token) {
 
 document.addEventListener("DOMContentLoaded", async () => {
   restoreSession();
+  startCooldown();
+
   if (resetToken) {
     const valid = await validateResetToken(resetToken);
     if (valid) {
-      switchPanel(resetPanel);
+      switchPanel(panels.reset);
+      window.history.replaceState({}, document.title, window.location.pathname);
     } else {
       showMessage("Reset link is invalid or expired.", "error");
-      switchPanel(forgotPanel);
+      switchPanel(panels.forgot);
+    }
+  }
+
+  if (verifyToken) {
+    try {
+      showLoader();
+      await apiRequest("/verify-email", "POST", { token: verifyToken });
+      showMessage("Email verified successfully! You can now log in.", "success");
+      switchPanel(panels.login);
+    } catch (err) {
+      showMessage(err.message || "Verification link is invalid or expired.", "error");
+    } finally {
+      hideLoader();
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }
 });
-
-//API HELPER
-async function apiRequest(endpoint, method = "GET", body = null, retry = true) {
-  const options = {
-    method,
-    headers: {
-      "Content-Type": "application/json"
-    }
-  };
-
-  if (accessToken) {
-    options.headers["Authorization"] = `Bearer ${accessToken}`;
-  }
-
-  if (body) {
-    options.body = JSON.stringify(body);
-  }
-
-  let response;
-  try {
-    response = await fetch(`${SERVER_URL}${endpoint}`, options);
-  } catch {
-    throw new Error("Network error. Please check your connection.")
-  }
-
-  const isAuthRoute = ["/login", "/register"].includes(endpoint);
-  if (response.status === 401 && retry && !isAuthRoute) {
-    try {
-      await refreshAccessToken();
-      return apiRequest(endpoint, method, body, false);
-    } catch {
-      await logout();
-      throw new Error("Session expired. Please login again.");
-    }
-  }
-
-  let data = {};
-  const contentType = response.headers.get("Content-Type") || "";
-
-  if (contentType && contentType.includes("application/json")) {
-    data = await response.json();
-  }
-
-  if (!response.ok) {
-    throw new Error(data.message || "Request failed. Please try again");
-  }
-
-  return data;
-}
 
 //LOGIN API
 async function login(email, password) {
@@ -309,12 +391,7 @@ async function register(username, email, password) {
   });
 }
 
-// VERIFY API
-async function verifyEmail(email, otp) {
-  return apiRequest("/verify-email", "POST", { email, otp });
-}
-
-// RESEND OTP API
+// RESEND API
 async function resendVerification(email) {
   return apiRequest("/resend-verification", "POST", { email });
 }
@@ -325,13 +402,13 @@ async function resetPassword(token, newPassword) {
 }
 
 // LOGIN FORM
-loginForm?.addEventListener("submit", async e => {
+forms.login?.addEventListener("submit", async e => {
   e.preventDefault();
 
-  const btn = loginForm.querySelector("button");
+  const btn = forms.login.querySelector("button");
 
-  const email = loginForm.email;
-  const password = loginForm.password;
+  const email = forms.login.email;
+  const password = forms.login.password;
 
   clearError(email);
   clearError(password);
@@ -373,15 +450,15 @@ loginForm?.addEventListener("submit", async e => {
 });
 
 //REGISTER FORM
-registerForm?.addEventListener("submit", async (e) => {
+forms.register?.addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const btn = registerForm.querySelector("button");
+  const btn = forms.register.querySelector("button");
 
-  const fullName = registerForm.username;
-  const email = registerForm.email;
-  const password = registerForm.password;
-  const confirm = registerForm.password_confirmation;
+  const fullName = forms.register.username;
+  const email = forms.register.email;
+  const password = forms.register.password;
+  const confirm = forms.register.password_confirmation;
 
   [fullName, email, password, confirm].forEach(clearError);
 
@@ -427,8 +504,9 @@ registerForm?.addEventListener("submit", async (e) => {
     showLoader();
     await register(cleanName, cleanEmail, cleanPassword);
 
-    pendingVerificationEmail = cleanEmail;
-    switchPanel(verifyPanel);
+    sessionStorage.setItem("pendingVerificationEmail", cleanEmail);
+
+    switchPanel(panels.verify);
   } catch (err) {
     setError(email, err.message || "Registration failed.");
   } finally {
@@ -439,12 +517,12 @@ registerForm?.addEventListener("submit", async (e) => {
 
 
 // FORGOT PASSWORD
-forgotForm?.addEventListener("submit", async e => {
+forms.forgot?.addEventListener("submit", async e => {
   e.preventDefault();
 
-  const btn = forgotForm.querySelector("button");
+  const btn = forms.forgot.querySelector("button");
 
-  const email = forgotForm.email;
+  const email = forms.forgot.email;
   clearError(email);
 
   const cleanEmail = sanitize(email.value).toLowerCase();
@@ -462,132 +540,9 @@ forgotForm?.addEventListener("submit", async e => {
       email: cleanEmail
     });
     showMessage("If an account exists, a reset link has been sent to your email.", "success");
-    switchPanel(loginPanel);
+    switchPanel(panels.login);
   } catch (err) {
     setError(email, err.message || "Unable to send reset link.");
-  } finally {
-    hideLoader();
-    btn.disabled = false;
-  }
-});
-
-
-// REAL-TIME PASSWORD CHECK
-registerForm?.password?.addEventListener("input", () => {
-  const result = validatePassword(registerForm.password.value);
-
-  if (!registerForm.password.value) {
-    clearError(registerForm.password);
-    return;
-  }
-
-  if (!result.minLength)
-    setError(registerForm.password, "Minimum 8 characters required.");
-  else if (!result.hasUpper)
-    setError(registerForm.password, "Include at least one uppercase letter.");
-  else if (!result.hasLower)
-    setError(registerForm.password, "Include at least one lowercase letter.");
-  else if (!result.hasNumber)
-    setError(registerForm.password, "Include at least one number.");
-  else if (!result.hasSymbol)
-    setError(registerForm.password, "Include at least one symbol.");
-  else if (!result.noSpaces)
-    setError(registerForm.password, "Spaces are not allowed.");
-  else clearError(registerForm.password);
-});
-
-// REAL-TIME PASSWORD CHECK (Reset Form)
-resetForm?.new_password?.addEventListener("input", () => {
-  const result = validatePassword(resetForm.new_password.value);
-
-  if (!resetForm.new_password.value) {
-    clearError(resetForm.new_password);
-    return;
-  }
-
-  if (!result.minLength)
-    setError(resetForm.new_password, "Minimum 8 characters required.");
-  else if (!result.hasUpper)
-    setError(resetForm.new_password, "Include at least one uppercase letter.");
-  else if (!result.hasLower)
-    setError(resetForm.new_password, "Include at least one lowercase letter.");
-  else if (!result.hasNumber)
-    setError(resetForm.new_password, "Include at least one number.");
-  else if (!result.hasSymbol)
-    setError(resetForm.new_password, "Include at least one symbol.");
-  else if (!result.noSpaces)
-    setError(resetForm.new_password, "Spaces are not allowed.");
-  else clearError(resetForm.new_password);
-});
-
-
-// OTP BOX BEHAVIOR
-const otpBoxes = document.querySelectorAll(".otp-box");
-
-otpBoxes.forEach((box, index) => {
-  box.addEventListener("input", (e) => {
-    e.target.value = e.target.value.replace(/[^0-9]/g, "");
-    if (e.target.value !== "" && index < otpBoxes.length - 1) {
-      otpBoxes[index + 1].focus();
-    }
-  });
-
-  box.addEventListener("keydown", (e) => {
-    if (e.key === "Backspace" && e.target.value === "" && index > 0) {
-      otpBoxes[index - 1].focus();
-    }
-  });
-
-  box.addEventListener("paste", (e) => {
-    e.preventDefault();
-    const pasteData = e.clipboardData.getData("text").replace(/[^0-9]/g, "").slice(0, 6);
-
-    pasteData.split("").forEach((char, i) => {
-      if (otpBoxes[i]) otpBoxes[i].value = char;
-    });
-
-    const focusIndex = Math.min(pasteData.length, 5);
-    otpBoxes[focusIndex].focus();
-  });
-});
-
-
-// VERIFY FORM SUBMIT
-verifyForm?.addEventListener("submit", async e => {
-  e.preventDefault();
-  const btn = verifyForm.querySelector("button");
-  const errorDisplay = document.querySelector("#js-otp-error");
-
-  const otpValue = Array.from(otpBoxes).map(box => box.value).join("");
-
-  errorDisplay.textContent = "";
-  otpBoxes.forEach(box => {
-    box.classList.remove("is-invalid");
-    box.classList.add("is-valid");
-  });
-
-  if (otpValue.length !== 6) {
-    errorDisplay.textContent = "Please enter a valid 6-digit code.";
-    otpBoxes.forEach(box => {
-      box.classList.add("is-invalid");
-      box.classList.remove("is-valid");
-    });
-    return;
-  }
-
-  btn.disabled = true;
-  try {
-    showLoader();
-    await verifyEmail(pendingVerificationEmail, otpValue);
-
-    switchPanel(loginPanel);
-    showMessage("Account verified successfully! You can now log in.", "success");
-  } catch (err) {
-    errorDisplay.textContent = err.message || "Verification failed. Please try again.";
-    otpBoxes.forEach(box => {
-      box.classList.add("is-invalid");
-      box.classList.remove("is-valid");
-    });
   } finally {
     hideLoader();
     btn.disabled = false;
@@ -597,12 +552,19 @@ verifyForm?.addEventListener("submit", async e => {
 // RESEND CODE
 resendCodeBtn?.addEventListener("click", async e => {
   e.preventDefault();
-  if (!pendingVerificationEmail) return;
+  const pendingEmail = sessionStorage.getItem("pendingVerificationEmail");
+
+  if (!pendingEmail) {
+    showMessage("No pending registration found. Please register again.", "error");
+    return;
+  }
 
   try {
     showLoader();
-    await resendVerification(pendingVerificationEmail);
-    showMessage("A new verification code has been sent to your email.");
+    await resendVerification(pendingEmail);
+    showMessage("A new verification code has been sent to your email.", "success");
+
+    startCooldown();
   } catch (err) {
     showMessage(err.message || "Unable to resend code.", "error");
   } finally {
@@ -611,11 +573,11 @@ resendCodeBtn?.addEventListener("click", async e => {
 });
 
 // RESET PASSWORD FORM SUBMIT
-resetForm?.addEventListener("submit", async e => {
+forms.reset?.addEventListener("submit", async e => {
   e.preventDefault();
-  const btn = resetForm.querySelector("button");
-  const newPassword = resetForm.new_password;
-  const confirmPassword = resetForm.confirm_new_password;
+  const btn = forms.reset.querySelector("button");
+  const newPassword = forms.reset.new_password;
+  const confirmPassword = forms.reset.confirm_new_password;
 
   clearError(newPassword);
   clearError(confirmPassword);
@@ -644,15 +606,15 @@ resetForm?.addEventListener("submit", async e => {
     // Clear the token from the URL bar so it doesn't linger
     window.history.replaceState({}, document.title, window.location.pathname);
 
-    switchPanel(loginPanel);
+    switchPanel(panels.login);
     showMessage("Password updated successfully! Please log in.", "success");
   } catch (err) {
     if (err.message.toLowerCase().includes("expired")) {
       showMessage("Reset link expired. Please request a new one.");
-      switchPanel(forgotPanel);
+      switchPanel(panels.forgot);
     } else if (err.message.toLowerCase().includes("invalid")) {
       showMessage("Invalid reset link.", "error");
-      switchPanel(forgotPanel);
+      switchPanel(panels.forgot);
     } else {
       setError(newPassword, err.message);
     }
