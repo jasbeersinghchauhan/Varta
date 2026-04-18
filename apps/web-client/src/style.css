@@ -249,40 +249,6 @@ body {
   right: 0;
 }
 
-/* OTP */
-.otp-container {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: space-between;
-  margin-top: 0.5rem;
-}
-
-.otp-box {
-  width: 3.2rem;
-  height: 3.6rem;
-  text-align: center;
-  font-size: 1.4rem;
-  font-weight: 600;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--input-bg);
-  color: var(--text-primary);
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
-}
-
-.otp-box:focus {
-  outline: none;
-  border-color: var(--primary);
-  background: #fff;
-  box-shadow: 0 0 0 3px rgba(42, 120, 200, 0.15);
-}
-
-/* Add a red border to the boxes when verification fails */
-.otp-box.is-invalid {
-  border-color: var(--error);
-}
-
 #globalLoader {
   position: fixed;
   inset: 0;
@@ -402,11 +368,5 @@ body {
 
   .auth__title {
     font-size: 1.5rem;
-  }
-
-  .otp-box {
-    width: 2.5rem;
-    height: 3rem;
-    font-size: 1.2rem;
   }
 }
