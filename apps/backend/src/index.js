@@ -2,7 +2,7 @@ import "./config/env.js";
 import { initializeDatabase } from "./database/pool.js";
 import { initializeWebSocket } from "./websocket/ws-server.js";
 import { app } from "./app.js";
-import { cleanupExpiredTokens } from "./utils/cleanup.utils.js";
+import { cleanupExpiredTokens, cleanupExpiredData } from "./utils/cleanup.utils.js";
 import http from "node:http";
 
 const PORT = process.env.PORT || 3000;
@@ -12,8 +12,31 @@ async function startServer() {
     await initializeDatabase();
     console.log("Database connection established.");
 
-    setInterval(() => {
-      cleanupExpiredTokens().catch(err => console.error("Cleanup failed: ", err));
+    let isCleaning = false;
+
+    setInterval(async () => {
+      if (isCleaning) {
+        console.log("[Cleanup] Skipping run (already in progress)");
+        return;
+      }
+
+      isCleaning = true;
+
+      try {
+        const results = await Promise.allSettled([
+          cleanupExpiredTokens(),
+          cleanupExpiredData()
+        ]);
+
+        results.forEach((result, index) => {
+          if (result.status === "rejected") {
+            console.error(`[Cleanup Error] Job ${index} failed:`, result.reason);
+          }
+        });
+
+      } finally {
+        isCleaning = false;
+      }
     }, 1000 * 60 * 15);
   } catch (err) {
     console.error("Database initialization failed: ", err.message);
