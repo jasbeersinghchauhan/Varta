@@ -1,9 +1,11 @@
-import bcrypt from "bcrypt"; 
+import bcrypt from "bcrypt";
+import crypto from "crypto";
 import { pool, query } from "../../database/pool.js";
 import {
     generateAccessToken,
     generateRefreshToken,
 } from "../../utils/token.utils.js";
+import { sendVerificationEmail } from "./email.service.js";
 
 export async function refreshSession(refreshToken) {
     const parts = refreshToken.split(".");
@@ -54,8 +56,7 @@ export async function refreshSession(refreshToken) {
     return { accessToken, refreshToken: newRefresh };
 }
 
-export async function registerUser(username, email, password) {
-    const passwordHash = await bcrypt.hash(password, 10);
+export async function registerUser(username, email, passwordHash) {
     const connection = await pool.getConnection();
 
     try {
@@ -133,4 +134,38 @@ export async function logoutUser(refreshToken) {
     await query(`DELETE FROM refresh_tokens WHERE id = UUID_TO_BIN(?)`, [
         tokenId,
     ]);
+}
+
+export async function sendEmailVerification(username, email, password) {
+    const passwordHash = await bcrypt.hash(password, 10);
+    const token = crypto.randomBytes(32).toString("hex");
+
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 15);
+
+    // INTO TEMPORARY TABLE
+    await query(`INSERT INTO email_verification (username, email, password_hash, token, expires_at) VALUES (?, ?, ?, ?, ?)`, [username, email, passwordHash, token, expiresAt]);
+
+    const verificationUrl = `${process.env.SERVER_URL}/verify-email?token=${token}`;
+
+    await sendVerificationEmail(email, username, verificationUrl);
+}
+
+export async function verifyEmailToken(token) {
+    const rows = await query(
+        `SELECT * FROM email_verification WHERE token = ?`,
+        [token]
+    );
+
+    if (!rows.length) {
+        throw new Error("Invalid token");
+    }
+
+    const record = rows[0];
+
+    if (new Date(record.expires_at) < new Date()) {
+        throw new Error("Token expired");
+    }
+
+    await registerUser(record.username, record.email, record.password_hash);
+    await query(`DELETE FROM email_verification WHERE id = ?`, [record.id]);
 }

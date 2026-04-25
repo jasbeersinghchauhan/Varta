@@ -1,8 +1,9 @@
 import {
     refreshSession,
-    registerUser,
     loginUser,
     logoutUser as logoutService,
+    sendEmailVerification,
+    verifyEmailToken
 } from "./auth.service.js";
 import { validateRegister } from "../../middleware/validation.middleware.js";
 import { query } from "../../database/pool.js";
@@ -43,9 +44,15 @@ export async function register(req, res) {
         validateRegister(body);
 
         const { username, email, password } = body;
-        await registerUser(username, email, password);
 
-        res.status(201).json({ message: "User Created" });
+        const existingUsers = await query(`SELECT id FROM users WHERE email = ?`, [email]);
+        if (existingUsers.length > 0) {
+            return res.status(409).json({ message: "Email already exists" });
+        }
+
+        await sendEmailVerification(username, email, password);
+
+        res.status(201).json({ message: "Gmail verification sent" });
     } catch (err) {
         if (err.message.startsWith("INVALID_")) {
             return res.status(400).json({ message: err.message });
@@ -95,5 +102,17 @@ export async function getCurrentUser(req, res) {
         res.status(200).json(rows[0]);
     } catch (err) {
         res.status(500).json({ message: "Server error" });
+    }
+}
+
+
+export async function verifyUserEmail(req, res) {
+    try {
+        const { token } = req.query;
+
+        const result = await verifyEmailToken(token);
+        return res.redirect(`${process.env.FRONTEND_URL}/login?verified=true`);
+    } catch (err) {
+        return res.status(400).json({ message: err.message });
     }
 }
