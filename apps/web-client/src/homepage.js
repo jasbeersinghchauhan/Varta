@@ -17,10 +17,19 @@ if (!accessToken && !refreshToken) {
 }
 
 let ws = null;
+const rtcConfig = {
+    iceServers: [
+        { urls: "stun:stun.l.google.com:19302" }
+    ]
+}
+
+let peerConnection = null;
+let localStream = null;
 
 let currentConversationId = null;
 let currentReceiverId = null;
 let currentUserId = null;
+let currentCallPartnerId = null;
 let oldestMessageTimestamp = null;
 let isBulkLoading = false;
 
@@ -64,6 +73,15 @@ const closeContactProfile = document.querySelector("#closeContactProfile");
 const contactProfileAvatar = document.querySelector("#contactProfileAvatar");
 const contactProfileName = document.querySelector("#contactProfileName");
 const contactProfileEmail = document.querySelector("#contactProfileEmail");
+
+
+const videoModal = document.querySelector("#videoModal");
+const localVideo = document.querySelector("#localVideo");
+const remoteVideo = document.querySelector("#remoteVideo");
+const endCallBtn = document.querySelector("#endCallBtn");
+const videoCallBtn = document.querySelector("#videoCall");
+const muteBtn = document.querySelector("#muteBtn");
+const cameraBtn = document.querySelector("#cameraBtn");
 
 sendBtn.disabled = true;
 
@@ -373,6 +391,46 @@ function renderMessage(msg, smoothScroll = true) {
     return el;
 }
 
+function createPeerConnection(targetUserId) {
+    peerConnection = new RTCPeerConnection(rtcConfig);
+
+    peerConnection.onicecandidate = (event) => {
+        if (event.candidate && ws.readyState === 1) {
+            ws.send(JSON.stringify({
+                type: "webrtc_ice_candidate",
+                to: targetUserId,
+                candidate: event.candidate
+            }));
+        }
+    };
+
+    peerConnection.ontrack = (event) => {
+        if (!remoteVideo.srcObject) {
+            remoteVideo.srcObject = event.streams[0];
+        }
+    };
+
+    if (localStream) {
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+    }
+}
+
+function closeCall() {
+    if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+    }
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+    }
+    localVideo.srcObject = null;
+    remoteVideo.srcObject = null;
+    videoModal.classList.add("hidden");
+}
+
 // SEND MESSAGE
 async function sendMessage() {
     const text = messageInput.value.trim();
@@ -430,7 +488,7 @@ function connectWebSocket() {
         reconnectAttempts = 0;
     };
 
-    ws.onmessage = (event) => {
+    ws.onmessage = async (event) => {
         const data = JSON.parse(event.data);
 
         if (data.type === "new_message") {
@@ -455,6 +513,46 @@ function connectWebSocket() {
                     headerStatus.className = `status-dot ${data.is_online ? "online" : "offline"}`;
                 }
             }
+        } else if (data.type === "webrtc_offer") {
+            videoModal.classList.remove("hidden");
+            currentCallPartnerId = data.senderId;
+
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                localVideo.srcObject = localStream;
+
+                createPeerConnection(currentCallPartnerId);
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                ws.send(JSON.stringify({
+                    type: "webrtc_answer",
+                    to: currentCallPartnerId,
+                    answer: answer
+                }));
+            } catch (err) {
+                console.error("Failed to answer call: ", err);
+                ws.send(JSON.stringify({
+                    type: "webrtc_end_call",
+                    to: data.senderId
+                }));
+                closeCall();
+            }
+        } else if (data.type === "webrtc_answer") {
+            if (peerConnection)
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+        } else if (data.type === "webrtc_ice_candidate") {
+            if (peerConnection) {
+                try {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                } catch (e) {
+                    console.error("Error adding received ice candidate", e);
+                }
+            }
+        } else if (data.type === "webrtc_end_call") {
+            closeCall();
         } else if (data.type === "error") {
             console.error("Server returned an error:", data.message);
         }
@@ -538,7 +636,7 @@ document.addEventListener("click", (e) => {
 
 document.querySelector("#viewContactProfileBtn").addEventListener("click", () => {
     contactMenu.classList.add("hidden");
-    
+
     contactProfileAvatar.src = chatAvatar.src;
     contactProfileName.textContent = chatUsername.textContent;
     contactProfileEmail.textContent = chatUserEmail.textContent;
@@ -593,6 +691,67 @@ logoutBtn?.addEventListener("click", async () => {
     sessionStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
     window.location.replace("/index.html");
+});
+
+muteBtn.addEventListener("click", (e) => {
+    if (localStream) {
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (audioTrack) {
+            audioTrack.enabled = !audioTrack.enabled;
+            e.target.textContent = audioTrack.enabled ? "Mute" : "Unmute";
+            e.target.style.background = audioTrack.enabled ? "rgba(255, 255, 255, 0.2)" : "#EF4444";
+        }
+    }
+});
+
+cameraBtn.addEventListener("click", (e) => {
+    if (localStream) {
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+            videoTrack.enabled = !videoTrack.enabled;
+            e.target.textContent = videoTrack.enabled ? "Camera" : "Camera Off";
+            e.target.style.background = videoTrack.enabled ? "rgba(255, 255, 255, 0.2)" : "#EF4444";
+        }
+    }
+});
+
+videoCallBtn.addEventListener("click", async () => {
+    if (!currentReceiverId) {
+        alert("Please select a conversation to start a call.");
+        return;
+    }
+
+    videoModal.classList.remove("hidden");
+
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = localStream;
+
+        currentCallPartnerId = currentReceiverId;
+        createPeerConnection(currentCallPartnerId);
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+
+        ws.send(JSON.stringify({
+            type: "webrtc_offer",
+            to: currentCallPartnerId,
+            offer: offer
+        }));
+    } catch (err) {
+        console.error("Failed to get local media:", err);
+        closeCall();
+    }
+});
+
+endCallBtn.addEventListener("click", () => {
+    if (currentCallPartnerId && ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({
+            type: "webrtc_end_call",
+            to: currentCallPartnerId
+        }));
+    }
+    closeCall();
 });
 
 // INIT
