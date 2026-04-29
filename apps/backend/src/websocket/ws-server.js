@@ -2,6 +2,7 @@ import { WebSocketServer } from 'ws';
 import { verifyAccessToken } from '../utils/token.utils.js'
 import  { registerConnection, removeConnection, getConnection, broadcastStatus } from './connections.js'
 import { routeEvent } from './ws-router.js';
+import { cleanupUserCalls } from './webrtc-server.js';
 
 export function initializeWebSocket(httpServer) {
     const wss = new WebSocketServer({ server: httpServer });
@@ -41,13 +42,14 @@ export function initializeWebSocket(httpServer) {
             }
         });
 
-        websocket.on("close", () => {
+        websocket.on("close", async () => {
             if (websocket.userId){
                 removeConnection(websocket.userId, websocket);
                 
                 const activeSockets = getConnection(websocket.userId);
                 if (!activeSockets || activeSockets.size === 0) {
                     broadcastStatus(websocket.userId, false);
+                    await cleanupUserCalls(websocket.userId);
                 }
             }
         });
