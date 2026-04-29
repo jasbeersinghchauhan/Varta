@@ -77,6 +77,7 @@ const contactProfileEmail = document.querySelector("#contactProfileEmail");
 
 const videoModal = document.querySelector("#videoModal");
 const localVideo = document.querySelector("#localVideo");
+const callStatus = document.querySelector("#callStatus");
 const remoteVideo = document.querySelector("#remoteVideo");
 const endCallBtn = document.querySelector("#endCallBtn");
 const videoCallBtn = document.querySelector("#videoCall");
@@ -394,6 +395,12 @@ function renderMessage(msg, smoothScroll = true) {
 function createPeerConnection(targetUserId) {
     peerConnection = new RTCPeerConnection(rtcConfig);
 
+    peerConnection.onconnectionstatechange = () => {
+        if (peerConnection.connectionState === "connected") {
+            callStatus.textContent = "Connected";
+        }
+    };
+
     peerConnection.onicecandidate = (event) => {
         if (event.candidate && ws.readyState === 1) {
             ws.send(JSON.stringify({
@@ -405,9 +412,7 @@ function createPeerConnection(targetUserId) {
     };
 
     peerConnection.ontrack = (event) => {
-        if (!remoteVideo.srcObject) {
-            remoteVideo.srcObject = event.streams[0];
-        }
+        remoteVideo.srcObject = event.streams[0];
     };
 
     if (localStream) {
@@ -426,9 +431,15 @@ function closeCall() {
         localStream.getTracks().forEach(track => track.stop());
         localStream = null;
     }
+    callStatus.textContent = "Call ended";
+
     localVideo.srcObject = null;
     remoteVideo.srcObject = null;
-    videoModal.classList.add("hidden");
+    currentCallPartnerId = null;
+
+    setTimeout(() => {
+        videoModal.classList.add("hidden");
+    }, 500);
 }
 
 // SEND MESSAGE
@@ -515,6 +526,7 @@ function connectWebSocket() {
             }
         } else if (data.type === "webrtc_offer") {
             videoModal.classList.remove("hidden");
+            callStatus.textContent = "Connecting...";
             currentCallPartnerId = data.senderId;
 
             try {
@@ -693,26 +705,26 @@ logoutBtn?.addEventListener("click", async () => {
     window.location.replace("/index.html");
 });
 
-muteBtn.addEventListener("click", (e) => {
-    if (localStream) {
-        const audioTrack = localStream.getAudioTracks()[0];
-        if (audioTrack) {
-            audioTrack.enabled = !audioTrack.enabled;
-            e.target.textContent = audioTrack.enabled ? "Mute" : "Unmute";
-            e.target.style.background = audioTrack.enabled ? "rgba(255, 255, 255, 0.2)" : "#EF4444";
-        }
-    }
+muteBtn.addEventListener("click", () => {
+    if (!localStream) return;
+
+    const track = localStream.getAudioTracks()[0];
+    if (!track) return;
+
+    track.enabled = !track.enabled;
+
+    muteBtn.classList.toggle("active", !track.enabled);
 });
 
-cameraBtn.addEventListener("click", (e) => {
-    if (localStream) {
-        const videoTrack = localStream.getVideoTracks()[0];
-        if (videoTrack) {
-            videoTrack.enabled = !videoTrack.enabled;
-            e.target.textContent = videoTrack.enabled ? "Camera" : "Camera Off";
-            e.target.style.background = videoTrack.enabled ? "rgba(255, 255, 255, 0.2)" : "#EF4444";
-        }
-    }
+cameraBtn.addEventListener("click", () => {
+    if (!localStream) return;
+
+    const track = localStream.getVideoTracks()[0];
+    if (!track) return;
+
+    track.enabled = !track.enabled;
+
+    cameraBtn.classList.toggle("active", !track.enabled);
 });
 
 videoCallBtn.addEventListener("click", async () => {
@@ -722,6 +734,7 @@ videoCallBtn.addEventListener("click", async () => {
     }
 
     videoModal.classList.remove("hidden");
+    callStatus.textContent = "Calling...";
 
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
