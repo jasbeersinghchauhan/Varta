@@ -22,6 +22,7 @@ const rtcConfig = {
         { urls: "stun:stun.l.google.com:19302" }
     ]
 }
+let selectedMessageId = null;
 
 let peerConnection = null;
 let localStream = null;
@@ -83,6 +84,19 @@ const endCallBtn = document.querySelector("#endCallBtn");
 const videoCallBtn = document.querySelector("#videoCall");
 const muteBtn = document.querySelector("#muteBtn");
 const cameraBtn = document.querySelector("#cameraBtn");
+
+const messageMenu = document.querySelector("#messageMenu");
+const editMsgBtn = document.querySelector("#editMsgBtn");
+const deleteMsgBtn = document.querySelector("#deleteMsgBtn");
+const editMessageModal = document.querySelector("#editMessageModal");
+const editMessageInput = document.querySelector("#editMessageInput");
+const cancelEditMsg = document.querySelector("#cancelEditMsg");
+const confirmEditMsg = document.querySelector("#confirmEditMsg");
+
+const callHistoryBtn = document.querySelector("#callHistoryBtn");
+const callLogsModal = document.querySelector("#callLogsModal");
+const callLogsList = document.querySelector("#callLogsList");
+const closeCallLogs = document.querySelector("#closeCallLogs");
 
 sendBtn.disabled = true;
 
@@ -373,12 +387,41 @@ function createMessageElement(msg) {
         msg.senderId === currentUserId;
 
     el.className = isSender ? "message sent" : "message received";
+    el.dataset.messageId = msg.id || msg.messageId;
 
     if (!isBulkLoading) {
         el.classList.add("animate");
     }
 
-    el.textContent = msg.text_content || msg.content;
+    if (msg.deleted_at) {
+        el.textContent = "This message was deleted.";
+        el.style.fontStyle = "italic";
+        el.style.opacity = "0.7";
+    } else {
+        el.textContent = msg.text_content || msg.content;
+        if (msg.edited_at) {
+            el.textContent += " (edited)";
+        }
+    }
+    if (isSender) {
+        el.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+            if (msg.deleted_at || el.textContent === "This message was deleted.") return;
+
+            selectedMessageId = el.dataset.messageId;
+
+            const menuWidth = 160;
+            let xPos = e.clientX;
+            if (xPos + menuWidth > window.innerWidth) {
+                xPos = window.innerWidth - menuWidth - 10;
+            }
+
+            messageMenu.style.position = 'fixed';
+            messageMenu.style.left = `${xPos}px`;
+            messageMenu.style.top = `${e.clientY}px`;
+            messageMenu.classList.remove("hidden");
+        });
+    }
     return el;
 }
 
@@ -442,6 +485,51 @@ function closeCall() {
     }, 500);
 }
 
+callHistoryBtn?.addEventListener("click", async () => {
+    callLogsList.innerHTML = `<div style="text-align:center; color:var(--text-muted);">Loading logs...</div>`;
+    callLogsModal.classList.remove("hidden");
+
+    try {
+        const logs = await apiRequest("/calls");
+        callLogsList.innerHTML = "";
+
+        if (!logs || logs.length === 0) {
+            callLogsList.innerHTML = `<div style="text-align:center; color:var(--text-muted);">No recent calls.</div>`;
+            return;
+        }
+
+        logs.forEach(log => {
+            const date = new Date(log.started_at).toLocaleString();
+            const isMissed = log.call_status === 'missed';
+            const statusColor = isMissed ? '#EF4444' : 'var(--secondary-green)';
+
+            const div = document.createElement("div");
+            div.style = "display: flex; justify-content: space-between; align-items: center; padding: 10px; background: var(--input-bg); border-radius: 8px;";
+
+            div.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <img src="${log.avatar_url || '/public/default-avatar.svg'}" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: var(--border-color);">
+                    <div style="text-align: left;">
+                        <div style="font-weight: 600; font-size: 14px;">${log.contact_name}</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">${date}</div>
+                    </div>
+                </div>
+                <div style="font-size: 13px; text-align: right;">
+                    <div style="color: ${statusColor}; font-weight: 600; text-transform: capitalize;">${log.call_status}</div>
+                    ${log.duration_sec ? `<div style="color: var(--text-muted);">${log.duration_sec}s</div>` : ''}
+                </div>
+            `;
+            callLogsList.appendChild(div);
+        });
+    } catch (error) {
+        callLogsList.innerHTML = `<div style="text-align:center; color:#EF4444;">Failed to load call logs.</div>`;
+    }
+});
+
+closeCallLogs?.addEventListener("click", () => {
+    callLogsModal.classList.add("hidden");
+});
+
 // SEND MESSAGE
 async function sendMessage() {
     const text = messageInput.value.trim();
@@ -486,6 +574,48 @@ messageInput.addEventListener("keydown", (e) => {
     }
 });
 
+editMsgBtn.addEventListener("click", () => {
+    messageMenu.classList.add("hidden");
+    const msgEl = document.querySelector(`[data-message-id="${selectedMessageId}"]`);
+
+    let text = msgEl.textContent.replace(" (edited)", "");
+    editMessageInput.value = text;
+    editMessageModal.classList.remove("hidden");
+});
+
+cancelEditMsg.addEventListener("click", () => {
+    editMessageModal.classList.add("hidden");
+});
+
+confirmEditMsg.addEventListener("click", () => {
+    const newText = editMessageInput.value.trim();
+    if (newText && ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({
+            type: "edit_message",
+            to: currentReceiverId,
+            messageId: selectedMessageId,
+            conversationId: currentConversationId,
+            content: newText
+        }));
+    }
+    editMessageModal.classList.add("hidden");
+});
+
+deleteMsgBtn.addEventListener("click", () => {
+    messageMenu.classList.add("hidden");
+
+    setTimeout(() => {
+        if (confirm("Are you sure you want to delete this message?") && ws && ws.readyState === 1) {
+            ws.send(JSON.stringify({
+                type: "delete_message",
+                to: currentReceiverId,
+                messageId: selectedMessageId,
+                conversationId: currentConversationId
+            }));
+        }
+    }, 10);
+});
+
 // WEBSOCKET
 let reconnectAttempts = 0;
 
@@ -506,6 +636,22 @@ function connectWebSocket() {
             const isNotMe = data.senderId !== currentUserId;
             if (data.conversationId === currentConversationId && isNotMe) {
                 renderMessage(data, true);
+            }
+        } else if (data.type === "message_edited") {
+            if (data.conversationId === currentConversationId) {
+                const msgElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
+                if (msgElement) {
+                    msgElement.textContent = data.content + " (edited)";
+                }
+            }
+        } else if (data.type === "message_deleted") {
+            if (data.conversationId === currentConversationId) {
+                const msgElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
+                if (msgElement) {
+                    msgElement.textContent = "This message was deleted.";
+                    msgElement.style.fontStyle = "italic";
+                    msgElement.style.opacity = "0.7";
+                }
             }
         } else if (data.type === "user_status") {
             const convItem = document.querySelector(
@@ -643,6 +789,9 @@ headerProfileBtn.addEventListener("click", () => {
 document.addEventListener("click", (e) => {
     if (!contactMenu.contains(e.target) && !profileBtn.contains(e.target)) {
         contactMenu.classList.add("hidden");
+    }
+    if (!messageMenu.contains(e.target)) {
+        messageMenu.classList.add("hidden");
     }
 });
 

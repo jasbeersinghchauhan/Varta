@@ -73,6 +73,8 @@ export async function getMessages(
             text_content, 
             attachment_url,
             created_at,
+            deleted_at,
+            edited_at,
             sender_id = ? AS is_sender
         FROM messages 
         WHERE conversation_id = ? 
@@ -88,6 +90,35 @@ export async function getMessages(
         text_content: row.text_content,
         attachment_url: row.attachment_url,
         created_at: row.created_at,
+        deleted_at: row.deleted_at,
+        edited_at: row.edited_at,
         is_sender: Boolean(row.is_sender),
     }));
+}
+
+export async function getMessagesByConversationId(conversationId) {
+    const rows = await query(`SELECT 
+            BIN_TO_UUID(id) AS id, 
+            BIN_TO_UUID(conversation_id) AS conversation_id,
+            BIN_TO_UUID(sender_id) AS sender_id,
+            message_type,
+            text_content,
+            attachment_url,
+            deleted_at,
+            edited_at,
+            created_at
+        FROM messages 
+        WHERE conversation_id = UUID_TO_BIN(?)
+        ORDER BY created_at ASC`, [conversationId]);
+    return rows;
+}
+
+export async function updateMessageContent(messageId, senderId, newContent) {
+    const sql = `UPDATE messages SET text_content = ?, edited_at = CURRENT_TIMESTAMP WHERE id = ? AND sender_id = ?`;
+    await query(sql, [newContent, uuidToBuffer(messageId), uuidToBuffer(senderId)]);
+}
+
+export async function softDeleteMessage(messageId, senderId) {
+    const sql = `UPDATE messages SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND sender_id = ?`;
+    await query(sql, [uuidToBuffer(messageId), uuidToBuffer(senderId)]);
 }
