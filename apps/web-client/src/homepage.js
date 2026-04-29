@@ -22,7 +22,9 @@ const rtcConfig = {
         { urls: "stun:stun.l.google.com:19302" }
     ]
 }
+let iceCandidateQueue = [];
 let selectedMessageId = null;
+let pendingCallOffer = null;
 
 let peerConnection = null;
 let localStream = null;
@@ -84,6 +86,11 @@ const endCallBtn = document.querySelector("#endCallBtn");
 const videoCallBtn = document.querySelector("#videoCall");
 const muteBtn = document.querySelector("#muteBtn");
 const cameraBtn = document.querySelector("#cameraBtn");
+
+const incomingCallModal = document.querySelector("#incomingCallModal");
+const incomingCallName = document.querySelector("#incomingCallName");
+const acceptCallBtn = document.querySelector("#acceptCallBtn");
+const rejectCallBtn = document.querySelector("#rejectCallBtn");
 
 const messageMenu = document.querySelector("#messageMenu");
 const editMsgBtn = document.querySelector("#editMsgBtn");
@@ -474,6 +481,7 @@ function closeCall() {
         localStream.getTracks().forEach(track => track.stop());
         localStream = null;
     }
+    iceCandidateQueue = [];
     callStatus.textContent = "Call ended";
 
     localVideo.srcObject = null;
@@ -673,43 +681,36 @@ function connectWebSocket() {
         } else if (data.type === "webrtc_offer") {
             videoModal.classList.remove("hidden");
             callStatus.textContent = "Connecting...";
+            pendingCallOffer = data;
+
             currentCallPartnerId = data.senderId;
 
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                localVideo.srcObject = localStream;
+            const callerElement = document.querySelector(`.conversation[data-user-id="${data.senderId}"] .conversation-name`);
+            const callerName = callerElement ? callerElement.textContent : "Someone";
 
-                createPeerConnection(currentCallPartnerId);
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
-
-                ws.send(JSON.stringify({
-                    type: "webrtc_answer",
-                    to: currentCallPartnerId,
-                    answer: answer
-                }));
-            } catch (err) {
-                console.error("Failed to answer call: ", err);
-                ws.send(JSON.stringify({
-                    type: "webrtc_end_call",
-                    to: data.senderId
-                }));
-                closeCall();
-            }
+            incomingCallName.textContent = `${callerName} is calling...`;
+            incomingCallModal.classList.remove("hidden");
         } else if (data.type === "webrtc_answer") {
             if (peerConnection)
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+            while (iceCandidateQueue.length > 0) {
+                await peerConnection.addIceCandidate(iceCandidateQueue.shift());
+            }
         } else if (data.type === "webrtc_ice_candidate") {
-            if (peerConnection) {
+            const candidate = new RTCIceCandidate(data.candidate);
+
+            if (peerConnection && peerConnection.remoteDescription) {
                 try {
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    await peerConnection.addIceCandidate(candidate);
                 } catch (e) {
                     console.error("Error adding received ice candidate", e);
                 }
+            } else {
+                iceCandidateQueue.push(candidate);
             }
         } else if (data.type === "webrtc_end_call") {
+            incomingCallModal.classList.add("hidden");
+            pendingCallOffer = null;
             closeCall();
         } else if (data.type === "error") {
             console.error("Server returned an error:", data.message);
@@ -904,6 +905,62 @@ videoCallBtn.addEventListener("click", async () => {
         console.error("Failed to get local media:", err);
         closeCall();
     }
+});
+
+acceptCallBtn.addEventListener("click", async () => {
+    incomingCallModal.classList.add("hidden");
+    
+    if (!pendingCallOffer) return;
+    const data = pendingCallOffer;
+
+    videoModal.classList.remove("hidden");
+    callStatus.textContent = "Connecting...";
+
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = localStream;
+
+        createPeerConnection(currentCallPartnerId);
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+
+        if (typeof iceCandidateQueue !== 'undefined') {
+            while (iceCandidateQueue.length > 0) {
+                await peerConnection.addIceCandidate(iceCandidateQueue.shift());
+            }
+        }
+
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        ws.send(JSON.stringify({
+            type: "webrtc_answer",
+            to: currentCallPartnerId,
+            answer: answer
+        }));
+    } catch (err) {
+        console.error("Failed to answer call: ", err);
+        ws.send(JSON.stringify({
+            type: "webrtc_end_call",
+            to: data.senderId
+        }));
+        closeCall();
+    }
+    
+    pendingCallOffer = null;
+});
+
+rejectCallBtn.addEventListener("click", () => {
+    incomingCallModal.classList.add("hidden");
+    
+    if (pendingCallOffer && ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({
+            type: "webrtc_end_call",
+            to: pendingCallOffer.senderId
+        }));
+    }
+    
+    pendingCallOffer = null;
+    currentCallPartnerId = null;
 });
 
 endCallBtn.addEventListener("click", () => {
