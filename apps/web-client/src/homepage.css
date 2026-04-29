@@ -68,7 +68,7 @@ body {
 
 /* SIDEBAR */
 .sidebar {
-  width: clamp(280px, 22vw, 340px);
+  width: clamp(280px, 30vw, 360px);
   background: var(--bg-surface);
   border-right: 1px solid var(--border-color);
   display: flex;
@@ -85,6 +85,7 @@ body {
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
   position: relative;
+  gap: 8px;
 }
 
 .logo {
@@ -92,6 +93,11 @@ body {
   font-weight: 700;
   color: var(--primary-blue);
   letter-spacing: -0.5px;
+  flex: 1;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .conversation-list {
@@ -582,6 +588,66 @@ body {
   background: #DC2626;
 }
 
+/* CALL LOGS */
+#callLogsModal .modal-content {
+  width: 90%;
+  max-width: 420px; 
+  padding: 20px;
+}
+
+#callLogsList {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 8px; 
+  margin-top: 16px;
+}
+
+#callLogsList::-webkit-scrollbar {
+  width: 6px;
+}
+
+#callLogsList::-webkit-scrollbar-track {
+  background: transparent; 
+}
+
+#callLogsList::-webkit-scrollbar-thumb {
+  background: var(--border-color); 
+  border-radius: 10px;
+}
+
+#callLogsList::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted); 
+}
+
+#callLogsList > div {
+  transition: transform 0.15s ease, background-color 0.2s ease;
+}
+
+#callLogsList > div:hover {
+  transform: scale(0.98);
+  background-color: var(--border-color) !important;
+}
+
+/* EDIT MESSAGE */
+#editMessageInput {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text-main);
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  resize: vertical; /* Allows user to expand the box if the text is long */
+  min-height: 60px;
+}
+
+#editMessageInput:focus {
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 0 2px rgba(42, 120, 200, 0.15);
+}
+
 /* MENUS & MODALS */
 .contact-menu {
   position: absolute;
@@ -673,6 +739,59 @@ body {
   color: #fff;
 }
 
+/* MESSAGE MENU(Right Click) */
+#messageMenu {
+  position: fixed;
+  right: auto;
+  bottom: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  min-width: 160px;
+  overflow: hidden;
+  animation: popIn 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+#messageMenu button {
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-main);
+  transition: background 0.2s ease;
+}
+
+#messageMenu button:hover {
+  background: var(--input-bg);
+}
+
+#messageMenu button.danger {
+  color: #EF4444;
+}
+
+#messageMenu button.danger:hover {
+  background: #fee2e2;
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 /* MOBILE RESPONSIVE */
 .menu-btn {
   display: none;
@@ -703,9 +822,7 @@ body {
   }
 
   .sidebar-header .logo {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
+    position: static;
   }
 
   .chat {
@@ -738,7 +855,7 @@ body {
   }
 
   #localVideo {
-    width: 130px;
+    width: clamp(140px, 25vw, 180px);
     height: auto;
     aspect-ratio: 4 / 3;
     top: 16px;
@@ -782,20 +899,20 @@ body {
     border-radius: 0;
   }
 
-  /* Local video → compact + moved down */
   #localVideo {
-    width: 100px;
-    aspect-ratio: 4 / 3;
-    top: 70px;
-    right: 12px;
-    border-radius: 10px;
+    width: 120px;
+    aspect-ratio: 3 / 4;
+    top: auto;
+    bottom: 110px;
+    right: 16px;
+    border-radius: 12px;
   }
 
   .call-controls {
     bottom: 20px;
-    width: 90%;
+    width: calc(100% - 32px);
     justify-content: space-around;
-    padding: 10px 12px;
+    padding: 12px;
   }
 
   .call-controls button {
@@ -892,5 +1009,5 @@ body {
 
 /* Hiding utility */
 .hidden {
-  display: none;
+  display: none !important;
 }
