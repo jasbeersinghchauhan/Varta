@@ -3,6 +3,7 @@ import cors from "cors";
 import { authRoutes } from "./features/auth/auth.routes.js";
 import { conversationRoutes } from "./features/conversation/conversation.routes.js";
 import { messageRoutes } from "./features/message/message.routes.js";
+import { callRoutes } from "./features/calls/calls.routes.js"
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.get("/health", (req, res) => {
 app.use("/", authRoutes);
 app.use("/conversations", conversationRoutes);
 app.use("/messages", messageRoutes);
+app.use("/calls", callRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });

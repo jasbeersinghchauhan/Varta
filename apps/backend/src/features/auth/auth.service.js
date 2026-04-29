@@ -142,6 +142,7 @@ export async function sendEmailVerification(username, email, password) {
 
     const expiresAt = new Date(Date.now() + 1000 * 60 * 15);
 
+    await query(`DELETE FROM email_verification WHERE email = ?`, [email]);
     // INTO TEMPORARY TABLE
     await query(`INSERT INTO email_verification (username, email, password_hash, token, expires_at) VALUES (?, ?, ?, ?, ?)`, [username, email, passwordHash, token, expiresAt]);
 
@@ -166,6 +167,12 @@ export async function verifyEmailToken(token) {
         throw new Error("Token expired");
     }
 
+    try {
     await registerUser(record.username, record.email, record.password_hash);
-    await query(`DELETE FROM email_verification WHERE id = ?`, [record.id]);
+    } catch (err) {
+        if (err.code !== 'ER_DUP_ENTRY') {
+            throw err;
+        }
+    }
+    await query(`DELETE FROM email_verification WHERE token = ?`, [token]);
 }
