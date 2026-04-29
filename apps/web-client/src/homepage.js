@@ -679,8 +679,6 @@ function connectWebSocket() {
                 }
             }
         } else if (data.type === "webrtc_offer") {
-            videoModal.classList.remove("hidden");
-            callStatus.textContent = "Connecting...";
             pendingCallOffer = data;
 
             currentCallPartnerId = data.senderId;
