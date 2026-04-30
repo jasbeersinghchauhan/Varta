@@ -3,9 +3,12 @@ import {
     loginUser,
     logoutUser as logoutService,
     sendEmailVerification,
-    verifyEmailToken
+    verifyEmailToken,
+    generatePasswordResetToken,
+    resetUserPassword,
+    checkResetTokenIsValid
 } from "./auth.service.js";
-import { validateRegister } from "../../middleware/validation.middleware.js";
+import { validateEmail, validatePassword, validateRegister } from "../../middleware/validation.middleware.js";
 import { query } from "../../database/pool.js";
 
 export async function refresh(req, res) {
@@ -41,9 +44,8 @@ export async function logout(req, res) {
 export async function register(req, res) {
     const body = req.body;
     try {
-        validateRegister(body);
 
-        const { username, email, password } = body;
+        const { username, email, password } = validateRegister(body);;
 
         const existingUsers = await query(`SELECT id FROM users WHERE email = ?`, [email]);
         if (existingUsers.length > 0) {
@@ -68,7 +70,10 @@ export async function register(req, res) {
 export async function login(req, res) {
     const body = req.body;
     try {
-        const { email, password } = body;
+        let { email, password } = body;
+        email = validateEmail(email);
+        password = validatePassword(password);
+
         if (!email || !password) {
             return res
                 .status(400)
@@ -114,5 +119,51 @@ export async function verifyUserEmail(req, res) {
         return res.redirect(`${process.env.FRONTEND_URL}/login?verified=true`);
     } catch (err) {
         return res.status(400).json({ message: err.message });
+    }
+}
+
+export async function forgotPassword(req, res) {
+    try {
+        let { email } = req.body;
+        if (!email) return res.status(400).json({ message: "Email is required" });
+        email = validateEmail(email);
+
+        await generatePasswordResetToken(email);
+        res.status(200).json({ message: "If that email is registered, a password reset link has been sent." });
+    } catch (err) {
+        res.status(500).json({ message: `Internal server error: ${err}` });
+    }
+}
+
+export async function resetPassword(req, res) {
+    try {
+        let { token, newPassword } = req.body;
+
+        if (!token || !newPassword) {
+            return res.status(400).json({ message: "Token and new password are required" });
+        }
+
+        newPassword = validatePassword(newPassword);
+        await resetUserPassword(token, newPassword);
+        res.status(200).json({ message: "Password has been successfully reset." });
+    } catch (err) {
+        if (err.message === "WEAK_PASSWORD") return res.status(400).json({ message: "Password does not meet strength requirements." });
+        if (err.message === "INVALID_TOKEN") return res.status(400).json({ message: "Invalid reset token." });
+        if (err.message === "TOKEN_EXPIRED") return res.status(400).json({ message: "Reset token has expired." });
+        res.status(500).json({ message: "Internal server error" });
+    }
+}
+
+export async function validateResetToken(req, res) {
+    try {
+        const { token } = req.body;
+        if (!token) {
+            return res.status(400).json({ message: "Token is required" });
+        }
+
+        await checkResetTokenIsValid(token);
+        res.status(200).json({ message: "Token is valid" });
+    } catch (err) {
+        res.status(400).json({ message: "Invalid or expired token" });
     }
 }

@@ -3,16 +3,37 @@ export function validateRegister(data) {
         throw new Error("INVALID_PAYLOAD");
     }
 
-    const username = typeof data.username === "string" ? data.username.trim() : "";
-    if (username.length < 3 || username.length > 80)
+    const username = validateUsername(data.username);
+    const email = validateEmail(data.email);
+    const password = validatePassword(data.password);
+
+    return { username, email, password };
+}
+
+export function validateUsername(username) {
+    if (typeof username !== "string") throw new Error("INVALID_USERNAME");
+
+    const trimmed = username.trim();
+
+    if (trimmed.length < 3 || trimmed.length > 80)
         throw new Error("INVALID_USERNAME");
+    return trimmed;
+}
 
-    const email = typeof data.email === "string" ? data.email.trim().toLowerCase() : "";
+export function validateEmail(email) {
+    if (typeof email !== "string") throw new Error("INVALID_EMAIL");
+
+    const normalized = email.trim().toLowerCase();
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email))
+    if (!emailRegex.test(normalized))
         throw new Error("INVALID_EMAIL");
+    return normalized;
+}
 
-    const password = typeof data.password === "string" ? data.password : "";
+export function validatePassword(password) {
+    if (typeof password !== "string") throw new Error("WEAK_PASSWORD");
+
     const strongPassword =
         password.length >= 8 &&
         /[A-Z]/.test(password) &&
@@ -21,4 +42,5 @@ export function validateRegister(data) {
 
     if (!strongPassword)
         throw new Error("WEAK_PASSWORD");
+    return password;
 }

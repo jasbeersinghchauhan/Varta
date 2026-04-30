@@ -5,7 +5,7 @@ import {
     generateAccessToken,
     generateRefreshToken,
 } from "../../utils/token.utils.js";
-import { sendVerificationEmail } from "./email.service.js";
+import { sendVerificationEmail, sendPasswordResetEmail } from "./email.service.js";
 
 export async function refreshSession(refreshToken) {
     const parts = refreshToken.split(".");
@@ -168,11 +168,64 @@ export async function verifyEmailToken(token) {
     }
 
     try {
-    await registerUser(record.username, record.email, record.password_hash);
+        await registerUser(record.username, record.email, record.password_hash);
     } catch (err) {
         if (err.code !== 'ER_DUP_ENTRY') {
             throw err;
         }
     }
     await query(`DELETE FROM email_verification WHERE token = ?`, [token]);
+}
+
+export async function generatePasswordResetToken(email) {
+    const users = await query(`SELECT id FROM users WHERE email = ?`, [email]);
+    if (users.length === 0) return;
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 15);
+
+    await query(`DELETE FROM password_reset WHERE email = ?`, [email]);
+    await query(`INSERT INTO password_reset (email, token, expires_at) VALUES (?, ?, ?)`, [email, token, expiresAt]);
+
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+    await sendPasswordResetEmail(email, resetUrl);
+}
+
+export async function checkResetTokenIsValid(token) {
+    const rows = await query(`SELECT expires_at FROM password_resets WHERE token = ?`, [token]);
+    
+    if (rows.length === 0) {
+        throw new Error("INVALID_TOKEN");
+    }
+    
+    if (new Date(rows[0].expires_at) < new Date()) {
+        throw new Error("TOKEN_EXPIRED");
+    }
+    
+    return true;
+}
+
+export async function resetUserPassword(token, newPassword) {
+    const rows = await query(`SELECT email, expires_at FROM password_reset WHERE token = ?`, [token]);
+    if (rows.length === 0)
+        throw new Error("INVALID_TOKEN");
+
+    const record = rows[0];
+
+    if (new Date(record.expires_at) < new Date()) {
+        await query(`DELETE FROM password_reset WHERE token = ?`, [token]);
+        throw new Error("TOKEN_EXPIRED");
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const users = await query(`SELECT id FROM users WHERE email = ?`, [record.email]);
+
+    if (users.length > 0) {
+        const userId = users[0].id;
+        await query(
+            `UPDATE user_auth_providers SET password_hash = ? WHERE user_id = ? AND provider_type = 'password'`,
+            [passwordHash, userId]
+        );
+    }
+    await query(`DELETE FROM password_resets WHERE email = ?`, [record.email]);
 }
