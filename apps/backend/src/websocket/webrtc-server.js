@@ -1,5 +1,6 @@
 import { sendToUser } from "./connections.js";
 import { createCallLog, updateCallStatus, finalizeCallLog } from "../features/calls/calls.service.js";
+import { callbackify } from "node:util";
 
 const activeCalls = new Map();
 
@@ -19,7 +20,8 @@ export async function handleWebRTCSignal(websocket, event) {
 
     try {
         if (event.type === "webrtc_offer") {
-            const callId = await createCallLog(senderId, receiverId, 'video');
+            const callType = event.callType || 'video';
+            const callId = await createCallLog(senderId, receiverId, callType);
             activeCalls.set(callKey, { id: callId, startTime: Date.now() });
         } else if (event.type === "webrtc_answer") {
             const callData = activeCalls.get(callKey);
