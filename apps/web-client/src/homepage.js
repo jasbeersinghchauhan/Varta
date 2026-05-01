@@ -28,6 +28,7 @@ let pendingCallOffer = null;
 
 let peerConnection = null;
 let localStream = null;
+let isAudioCall = false;
 
 let currentConversationId = null;
 let currentReceiverId = null;
@@ -84,6 +85,7 @@ const callStatus = document.querySelector("#callStatus");
 const remoteVideo = document.querySelector("#remoteVideo");
 const endCallBtn = document.querySelector("#endCallBtn");
 const videoCallBtn = document.querySelector("#videoCall");
+const audioCallBtn = document.querySelector("#audioCall");
 const muteBtn = document.querySelector("#muteBtn");
 const cameraBtn = document.querySelector("#cameraBtn");
 
@@ -686,6 +688,11 @@ function connectWebSocket() {
             const callerElement = document.querySelector(`.conversation[data-user-id="${data.senderId}"] .conversation-name`);
             const callerName = callerElement ? callerElement.textContent : "Someone";
 
+            const incomingCallTitle = incomingCallModal.querySelector("h3");
+            if (incomingCallTitle) {
+                incomingCallTitle.textContent = data.callType === "audio" ? "Incoming Voice Call" : "Incoming Video Call";
+            }
+
             incomingCallName.textContent = `${callerName} is calling...`;
             incomingCallModal.classList.remove("hidden");
         } else if (data.type === "webrtc_answer") {
@@ -905,6 +912,43 @@ videoCallBtn.addEventListener("click", async () => {
     }
 });
 
+audioCallBtn.addEventListener("click", async () => {
+    if (!currentReceiverId) {
+        alert("Please select a conversation to start a call.");
+        return;
+    }
+
+    videoModal.classList.remove("hidden");
+    callStatus.textContent = "Calling...";
+
+    isAudioCall = true;
+
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+        localVideo.srcObject = localStream;
+
+        cameraBtn.classList.add("active");
+
+        currentCallPartnerId = currentReceiverId;
+        createPeerConnection(currentCallPartnerId);
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+
+        ws.send(JSON.stringify({
+            type: "webrtc_offer",
+            to: currentCallPartnerId,
+            offer: offer,
+            callType: "audio"
+        }));
+    } catch (err) {
+        console.error("Failed to get local media:", err);
+        closeCall();
+    } finally {
+        isAudioCall = false;
+    }
+});
+
 acceptCallBtn.addEventListener("click", async () => {
     incomingCallModal.classList.add("hidden");
     
@@ -915,7 +959,7 @@ acceptCallBtn.addEventListener("click", async () => {
     callStatus.textContent = "Connecting...";
 
     try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localStream = await navigator.mediaDevices.getUserMedia({ video: !isAudioCall, audio: true });
         localVideo.srcObject = localStream;
 
         createPeerConnection(currentCallPartnerId);
