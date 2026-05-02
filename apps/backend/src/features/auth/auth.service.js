@@ -146,7 +146,7 @@ export async function sendEmailVerification(username, email, password) {
     // INTO TEMPORARY TABLE
     await query(`INSERT INTO email_verification (username, email, password_hash, token, expires_at) VALUES (?, ?, ?, ?, ?)`, [username, email, passwordHash, token, expiresAt]);
 
-    const verificationUrl = `${process.env.SERVER_URL}/verify-email?token=${token}`;
+    const verificationUrl = `${process.env.FRONTEND_URL}/?verifyToken=${token}`;
 
     await sendVerificationEmail(email, username, verificationUrl);
 }
@@ -187,12 +187,12 @@ export async function generatePasswordResetToken(email) {
     await query(`DELETE FROM password_reset WHERE email = ?`, [email]);
     await query(`INSERT INTO password_reset (email, token, expires_at) VALUES (?, ?, ?)`, [email, token, expiresAt]);
 
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+    const resetUrl = `${process.env.FRONTEND_URL}/?token=${token}`;
     await sendPasswordResetEmail(email, resetUrl);
 }
 
 export async function checkResetTokenIsValid(token) {
-    const rows = await query(`SELECT expires_at FROM password_resets WHERE token = ?`, [token]);
+    const rows = await query(`SELECT expires_at FROM password_reset WHERE token = ?`, [token]);
     
     if (rows.length === 0) {
         throw new Error("INVALID_TOKEN");
@@ -227,5 +227,5 @@ export async function resetUserPassword(token, newPassword) {
             [passwordHash, userId]
         );
     }
-    await query(`DELETE FROM password_resets WHERE email = ?`, [record.email]);
+    await query(`DELETE FROM password_reset WHERE email = ?`, [record.email]);
 }

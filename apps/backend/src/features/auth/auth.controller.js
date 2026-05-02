@@ -113,7 +113,7 @@ export async function getCurrentUser(req, res) {
 
 export async function verifyUserEmail(req, res) {
     try {
-        const { token } = req.query;
+        const { token } = req.body.token;
 
         const result = await verifyEmailToken(token);
         return res.redirect(`${process.env.FRONTEND_URL}/login?verified=true`);
