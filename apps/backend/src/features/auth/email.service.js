@@ -1,17 +1,11 @@
 import "../../config/env.js";
-import nodemailer from "nodemailer";
+import { Resend } from 'resend';
 
-const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS
-        }
-    });
+const resend = new Resend(`${process.env.RESEND_API_KEY}`);
 
 export async function sendVerificationEmail(to, username, verificationUrl) {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-        throw new Error("Email configuration missing");
+    if (!process.env.RESEND_API_KEY) {
+        throw new Error("Resend API missing");
     }
 
     if (!to || !verificationUrl) {
@@ -19,8 +13,8 @@ export async function sendVerificationEmail(to, username, verificationUrl) {
     }
 
     try {
-        return await transporter.sendMail({
-            from: `Varta <${process.env.EMAIL_USER}>`,
+        return await resend.emails.send({
+            from: 'onboarding@resend.dev',
             to: to,
             subject: "Verify your Varta Account",
             text: `Hello ${username}, verify your email: ${verificationUrl}`,
@@ -65,8 +59,8 @@ export async function sendVerificationEmail(to, username, verificationUrl) {
 }
 
 export async function sendPasswordResetEmail(to, resetUrl) {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-        throw new Error("Email configuration missing");
+    if (!process.env.RESEND_API_KEY) {
+        throw new Error("Resend API missing");
     }
 
     if (!to || !resetUrl) {
@@ -74,8 +68,8 @@ export async function sendPasswordResetEmail(to, resetUrl) {
     }
 
     try {
-        return await transporter.sendMail({
-            from: `Varta <${process.env.EMAIL_USER}>`,
+        return await resend.emails.send({
+            from: 'onboarding@resend.dev',
             to: to,
             subject: "Reset your Varta Password",
             text: `Click the following link to reset your password: ${resetUrl}`,

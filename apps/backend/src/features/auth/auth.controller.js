@@ -131,7 +131,7 @@ export async function forgotPassword(req, res) {
         await generatePasswordResetToken(email);
         res.status(200).json({ message: "If that email is registered, a password reset link has been sent." });
     } catch (err) {
-        res.status(500).json({ message: `Internal server error: ${err}` });
+        res.status(500).json({ message: `Internal server error` });
     }
 }
 
