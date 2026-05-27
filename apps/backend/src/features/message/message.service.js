@@ -67,15 +67,15 @@ export async function getMessages(
 
     const rows = await query(
         `SELECT 
-            id, 
-            conversation_id, 
-            sender_id, 
-            text_content, 
-            attachment_url,
-            created_at,
-            deleted_at,
-            edited_at,
-            sender_id = ? AS is_sender
+        BIN_TO_UUID(id) AS id,
+        BIN_TO_UUID(conversation_id) AS conversation_id,
+        BIN_TO_UUID(sender_id) AS sender_id,
+        text_content,
+        attachment_url,
+        created_at,
+        deleted_at,
+        edited_at,
+        sender_id = ? AS is_sender
         FROM messages 
         WHERE conversation_id = ? 
         ${cursor ? "AND created_at < ?" : ""}
@@ -83,24 +83,17 @@ export async function getMessages(
         LIMIT 50`,
         queryParams
     );
-    return rows.reverse().reduce((acc, row) => {
-        try {
-            acc.push({
-                id: bufferToUuid(row.id),
-                conversation_id: bufferToUuid(row.conversation_id),
-                sender_id: bufferToUuid(row.sender_id),
-                text_content: row.text_content,
-                attachment_url: row.attachment_url,
-                created_at: row.created_at,
-                deleted_at: row.deleted_at,
-                edited_at: row.edited_at,
-                is_sender: Boolean(row.is_sender),
-            });
-        } catch (err) {
-            console.warn("Skipped a corrupt message row in DB:", err.message);
-        }
-        return acc;
-    }, []);
+    return rows.reverse().map((row) => ({
+        id: row.id,
+        conversation_id: row.conversation_id,
+        sender_id: row.sender_id,
+        text_content: row.text_content,
+        attachment_url: row.attachment_url,
+        created_at: row.created_at,
+        deleted_at: row.deleted_at,
+        edited_at: row.edited_at,
+        is_sender: Boolean(row.is_sender),
+    }));
 }
 
 export async function getMessagesByConversationId(conversationId) {
