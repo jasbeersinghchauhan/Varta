@@ -17,6 +17,7 @@ export async function fetchMessages(req, res) {
         );
         res.json(messages);
     } catch (err) {
+        console.error("fetchMessages Error:", err);
         res.status(500).json({ message: "FAILED_TO_FETCH_MESSAGES" });
     }
 }

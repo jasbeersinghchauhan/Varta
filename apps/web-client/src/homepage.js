@@ -81,7 +81,6 @@ const contactProfileEmail = document.querySelector("#contactProfileEmail");
 
 const videoModal = document.querySelector("#videoModal");
 const localVideo = document.querySelector("#localVideo");
-const callStatus = document.querySelector("#callStatus");
 const remoteVideo = document.querySelector("#remoteVideo");
 const endCallBtn = document.querySelector("#endCallBtn");
 const videoCallBtn = document.querySelector("#videoCall");
@@ -227,6 +226,13 @@ async function refreshAccessToken() {
         return null;
     }
 }
+// HELPER
+function updateCallStatusUI(text) {
+    const vStatus = document.querySelector("#videoCallStatus");
+    const aStatus = document.querySelector("#audioCallStatusText");
+    if (vStatus) vStatus.textContent = text;
+    if (aStatus) aStatus.textContent = text;
+}
 
 // API HELPER
 async function apiRequest(endpoint, options = {}, retry = true) {
@@ -338,7 +344,13 @@ async function openConversation(conv) {
     messageInput.disabled = false;
     messageInput.placeholder = "Type a message...";
 
-    currentConversationId = conv.id || conv.conversation_id;
+    let chatId = conv.id || conv.conversation_id;
+
+    if (chatId === "undefined" || chatId === "null") {
+        chatId = null;
+    }
+
+    currentConversationId = chatId;
     currentReceiverId = conv.user_id;
 
     chatUsername.textContent = conv.username;
@@ -357,7 +369,19 @@ async function openConversation(conv) {
     isBulkLoading = true;
 
     try {
-        const messages = await apiRequest(`/messages/${conv.id}`);
+        if (!chatId) {
+            messagesDiv.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted);">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 12px; opacity: 0.5;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    <p>No messages yet.</p>
+                    <p style="font-size: 12px;">Send a message to start the conversation.</p>
+                </div>
+            `;
+            oldestMessageTimestamp = null;
+            return;
+        }
+
+        const messages = await apiRequest(`/messages/${chatId}`);
         messagesDiv.innerHTML = "";
 
         if (!messages || messages.length === 0) {
@@ -463,7 +487,7 @@ function createPeerConnection(targetUserId) {
 
     peerConnection.onconnectionstatechange = () => {
         if (peerConnection.connectionState === "connected") {
-            callStatus.textContent = "Connected";
+            updateCallStatusUI("Connected");
         }
     };
 
@@ -498,7 +522,7 @@ function closeCall() {
         localStream = null;
     }
     iceCandidateQueue = [];
-    callStatus.textContent = "Call ended";
+    updateCallStatusUI("Call ended");
 
     localVideo.srcObject = null;
     remoteVideo.srcObject = null;
@@ -512,6 +536,8 @@ function closeCall() {
 
     setTimeout(() => {
         videoModal.classList.add("hidden");
+        document.querySelector("#videoWrapper").classList.remove("hidden");
+        document.querySelector("#audioWrapper").classList.add("hidden");
     }, 500);
 }
 
@@ -612,7 +638,7 @@ editMsgBtn.addEventListener("click", () => {
     if (text.endsWith(" (edited)")) {
         text = text.substring(0, text.length - 9);
     }
-    
+
     editMessageInput.value = text;
     editMessageModal.classList.remove("hidden");
 });
@@ -722,8 +748,7 @@ function connectWebSocket() {
             currentCallPartnerId = data.senderId;
             isAudioCall = data.callType === "audio";
 
-            const callerElement = document.querySelector(`.conversation[data-user-id="${data.senderId}"] .conversation-name`);
-            const callerName = callerElement ? callerElement.textContent : "Someone";
+            const callerName = data.callerName || "Someone";
 
             const incomingCallTitle = incomingCallModal.querySelector("h3");
             if (incomingCallTitle) {
@@ -925,8 +950,11 @@ videoCallBtn.addEventListener("click", async () => {
         return;
     }
 
+    document.querySelector("#videoWrapper").classList.remove("hidden");
+    document.querySelector("#audioWrapper").classList.add("hidden");
+
     videoModal.classList.remove("hidden");
-    callStatus.textContent = "Calling...";
+    updateCallStatusUI("Calling...");
 
     cameraBtn.style.display = "";
 
@@ -943,7 +971,10 @@ videoCallBtn.addEventListener("click", async () => {
         ws.send(JSON.stringify({
             type: "webrtc_offer",
             to: currentCallPartnerId,
-            offer: offer
+            offer: offer,
+            callType: "video",
+            callerName: profileName.textContent,
+            callerAvatar: profileAvatar.src
         }));
     } catch (err) {
         console.error("Failed to get local media:", err);
@@ -957,8 +988,15 @@ audioCallBtn.addEventListener("click", async () => {
         return;
     }
 
+    document.querySelector("#videoWrapper").classList.add("hidden");
+    document.querySelector("#audioWrapper").classList.remove("hidden");
+
+    // Set Avatar and Name on screen
+    document.querySelector("#audioAvatar").src = chatAvatar.src;
+    document.querySelector("#audioName").textContent = chatUsername.textContent;
+
     videoModal.classList.remove("hidden");
-    callStatus.textContent = "Calling...";
+    updateCallStatusUI("Calling...");
 
     isAudioCall = true;
     cameraBtn.style.display = "none";
@@ -977,7 +1015,9 @@ audioCallBtn.addEventListener("click", async () => {
             type: "webrtc_offer",
             to: currentCallPartnerId,
             offer: offer,
-            callType: "audio"
+            callType: "audio",
+            callerName: profileName.textContent,
+            callerAvatar: profileAvatar.src
         }));
     } catch (err) {
         console.error("Failed to get local media:", err);
@@ -991,8 +1031,22 @@ acceptCallBtn.addEventListener("click", async () => {
     if (!pendingCallOffer) return;
     const data = pendingCallOffer;
 
+    if (isAudioCall) {
+        document.querySelector("#videoWrapper").classList.add("hidden");
+        document.querySelector("#audioWrapper").classList.remove("hidden");
+        cameraBtn.style.display = "none";
+
+        // Grab the caller's avatar from the sidebar
+        document.querySelector("#audioAvatar").src = data.callerAvatar || "/public/default-avatar.svg";
+        document.querySelector("#audioName").textContent = data.callerName || "Someone";
+    } else {
+        document.querySelector("#videoWrapper").classList.remove("hidden");
+        document.querySelector("#audioWrapper").classList.add("hidden");
+        cameraBtn.style.display = "";
+    }
+
     videoModal.classList.remove("hidden");
-    callStatus.textContent = "Connecting...";
+    updateCallStatusUI("Connecting...");
 
     try {
         try {

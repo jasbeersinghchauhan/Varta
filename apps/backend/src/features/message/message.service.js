@@ -83,17 +83,24 @@ export async function getMessages(
         LIMIT 50`,
         queryParams
     );
-    return rows.reverse().map((row) => ({
-        id: bufferToUuid(row.id),
-        conversation_id: bufferToUuid(row.conversation_id),
-        sender_id: bufferToUuid(row.sender_id),
-        text_content: row.text_content,
-        attachment_url: row.attachment_url,
-        created_at: row.created_at,
-        deleted_at: row.deleted_at,
-        edited_at: row.edited_at,
-        is_sender: Boolean(row.is_sender),
-    }));
+    return rows.reverse().reduce((acc, row) => {
+        try {
+            acc.push({
+                id: bufferToUuid(row.id),
+                conversation_id: bufferToUuid(row.conversation_id),
+                sender_id: bufferToUuid(row.sender_id),
+                text_content: row.text_content,
+                attachment_url: row.attachment_url,
+                created_at: row.created_at,
+                deleted_at: row.deleted_at,
+                edited_at: row.edited_at,
+                is_sender: Boolean(row.is_sender),
+            });
+        } catch (err) {
+            console.warn("Skipped a corrupt message row in DB:", err.message);
+        }
+        return acc;
+    }, []);
 }
 
 export async function getMessagesByConversationId(conversationId) {

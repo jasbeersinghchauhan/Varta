@@ -472,6 +472,78 @@ body {
   pointer-events: none;
 }
 
+/* AUDIO MODAL */
+.audio-wrapper {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  z-index: 2;
+}
+
+.audio-avatar-container {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  margin-bottom: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#audioAvatar {
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid var(--bg-surface);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  z-index: 5;
+}
+
+.pulse-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(42, 120, 200, 0.4);
+  z-index: 1;
+  animation: callPulse 2s infinite cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pulse-ring-2 {
+  animation-delay: 1s;
+}
+
+@keyframes callPulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+.audio-name {
+  font-size: 26px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 8px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  letter-spacing: 0.5px;
+}
+
+.audio-status {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+}
+
 #remoteVideo {
   width: 100%;
   height: 100%;
