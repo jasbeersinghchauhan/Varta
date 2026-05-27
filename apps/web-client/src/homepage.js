@@ -338,7 +338,7 @@ async function openConversation(conv) {
     messageInput.disabled = false;
     messageInput.placeholder = "Type a message...";
 
-    currentConversationId = conv.id;
+    currentConversationId = conv.id || conv.conversation_id;
     currentReceiverId = conv.user_id;
 
     chatUsername.textContent = conv.username;
@@ -355,36 +355,43 @@ async function openConversation(conv) {
                             </div>`;
 
     isBulkLoading = true;
-    const messages = await apiRequest(`/messages/${conv.id}`);
 
-    messagesDiv.innerHTML = "";
+    try {
+        const messages = await apiRequest(`/messages/${conv.id}`);
+        messagesDiv.innerHTML = "";
 
-    if (!messages || messages.length === 0) {
-        messagesDiv.innerHTML = `
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted);">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 12px; opacity: 0.5;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                <p>No messages yet.</p>
-                <p style="font-size: 12px;">Send a message to start the conversation.</p>
-            </div>
-        `;
-        oldestMessageTimestamp = null;
+        if (!messages || messages.length === 0) {
+            messagesDiv.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted);">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 12px; opacity: 0.5;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    <p>No messages yet.</p>
+                    <p style="font-size: 12px;">Send a message to start the conversation.</p>
+                </div>
+            `;
+            oldestMessageTimestamp = null;
+            return;
+        }
+
+        oldestMessageTimestamp = messages[0].created_at;
+        const fragment = document.createDocumentFragment();
+
+        messages.forEach((msg) => {
+            const el = createMessageElement(msg);
+            fragment.appendChild(el);
+        });
+
+        messagesDiv.appendChild(fragment);
+        if (messagesDiv.lastElementChild) {
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+    } catch (error) {
+        console.error("Failed to load messages:", error);
+        messagesDiv.innerHTML = `<div style="text-align:center;     padding: 20px; color: #EF4444; font-size: 14px;">
+                                    Failed to load messages. Please try opening the chat again.
+                                </div>`;
+    } finally {
         isBulkLoading = false;
-        return;
     }
-
-    oldestMessageTimestamp = messages[0].created_at;
-    const fragment = document.createDocumentFragment();
-
-    messages.forEach((msg) => {
-        const el = createMessageElement(msg);
-        fragment.appendChild(el);
-    });
-
-    messagesDiv.appendChild(fragment);
-    if (messagesDiv.lastElementChild) {
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }
-    isBulkLoading = false;
 }
 
 // RENDER MESSAGE
@@ -420,14 +427,21 @@ function createMessageElement(msg) {
             selectedMessageId = el.dataset.messageId;
 
             const menuWidth = 160;
+            const menuHeight = 90;
+
             let xPos = e.clientX;
             if (xPos + menuWidth > window.innerWidth) {
                 xPos = window.innerWidth - menuWidth - 10;
             }
 
+            let yPos = e.clientY;
+            if (yPos + menuHeight > window.innerHeight) {
+                yPos = window.innerHeight - menuHeight - 10;
+            }
+
             messageMenu.style.position = 'fixed';
             messageMenu.style.left = `${xPos}px`;
-            messageMenu.style.top = `${e.clientY}px`;
+            messageMenu.style.top = `${yPos}px`;
             messageMenu.classList.remove("hidden");
         });
     }
@@ -490,6 +504,12 @@ function closeCall() {
     remoteVideo.srcObject = null;
     currentCallPartnerId = null;
 
+    muteBtn.classList.remove("active");
+    cameraBtn.classList.remove("active");
+    cameraBtn.style.display = "";
+
+    isAudioCall = false;
+
     setTimeout(() => {
         videoModal.classList.add("hidden");
     }, 500);
@@ -544,7 +564,7 @@ closeCallLogs?.addEventListener("click", () => {
 async function sendMessage() {
     const text = messageInput.value.trim();
 
-    if (!text || !currentConversationId) return;
+    if (!text || !currentReceiverId) return;
 
     if (!ws || ws.readyState !== 1) {
         console.warn("Socket not ready");
@@ -588,7 +608,11 @@ editMsgBtn.addEventListener("click", () => {
     messageMenu.classList.add("hidden");
     const msgEl = document.querySelector(`[data-message-id="${selectedMessageId}"]`);
 
-    let text = msgEl.textContent.replace(" (edited)", "");
+    let text = msgEl.textContent;
+    if (text.endsWith(" (edited)")) {
+        text = text.substring(0, text.length - 9);
+    }
+    
     editMessageInput.value = text;
     editMessageModal.classList.remove("hidden");
 });
@@ -644,6 +668,18 @@ function connectWebSocket() {
 
         if (data.type === "new_message") {
             const isNotMe = data.senderId !== currentUserId;
+
+            if (!isNotMe) {
+                if (!currentConversationId) {
+                    currentConversationId = data.conversationId;
+                }
+
+                const unassignedMsg = document.querySelector('.message.sent[data-message-id="undefined"]');
+                if (unassignedMsg) {
+                    unassignedMsg.dataset.messageId = data.messageId;
+                }
+            }
+
             if (data.conversationId === currentConversationId && isNotMe) {
                 renderMessage(data, true);
             }
@@ -684,6 +720,7 @@ function connectWebSocket() {
             pendingCallOffer = data;
 
             currentCallPartnerId = data.senderId;
+            isAudioCall = data.callType === "audio";
 
             const callerElement = document.querySelector(`.conversation[data-user-id="${data.senderId}"] .conversation-name`);
             const callerName = callerElement ? callerElement.textContent : "Someone";
@@ -891,6 +928,8 @@ videoCallBtn.addEventListener("click", async () => {
     videoModal.classList.remove("hidden");
     callStatus.textContent = "Calling...";
 
+    cameraBtn.style.display = "";
+
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         localVideo.srcObject = localStream;
@@ -922,12 +961,11 @@ audioCallBtn.addEventListener("click", async () => {
     callStatus.textContent = "Calling...";
 
     isAudioCall = true;
+    cameraBtn.style.display = "none";
 
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
         localVideo.srcObject = localStream;
-
-        cameraBtn.classList.add("active");
 
         currentCallPartnerId = currentReceiverId;
         createPeerConnection(currentCallPartnerId);
@@ -944,14 +982,12 @@ audioCallBtn.addEventListener("click", async () => {
     } catch (err) {
         console.error("Failed to get local media:", err);
         closeCall();
-    } finally {
-        isAudioCall = false;
     }
 });
 
 acceptCallBtn.addEventListener("click", async () => {
     incomingCallModal.classList.add("hidden");
-    
+
     if (!pendingCallOffer) return;
     const data = pendingCallOffer;
 
@@ -959,7 +995,20 @@ acceptCallBtn.addEventListener("click", async () => {
     callStatus.textContent = "Connecting...";
 
     try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: !isAudioCall, audio: true });
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: !isAudioCall, audio: true });
+        } catch (mediaErr) {
+            console.warn("Camera in use or denied. Falling back to audio-only...", mediaErr);
+            localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+            isAudioCall = true;
+        }
+
+        if (isAudioCall) {
+            cameraBtn.style.display = "none";
+        } else {
+            cameraBtn.style.display = "";
+        }
+
         localVideo.srcObject = localStream;
 
         createPeerConnection(currentCallPartnerId);
@@ -987,20 +1036,20 @@ acceptCallBtn.addEventListener("click", async () => {
         }));
         closeCall();
     }
-    
+
     pendingCallOffer = null;
 });
 
 rejectCallBtn.addEventListener("click", () => {
     incomingCallModal.classList.add("hidden");
-    
+
     if (pendingCallOffer && ws && ws.readyState === 1) {
         ws.send(JSON.stringify({
             type: "webrtc_end_call",
             to: pendingCallOffer.senderId
         }));
     }
-    
+
     pendingCallOffer = null;
     currentCallPartnerId = null;
 });
