@@ -1,5 +1,5 @@
 import { query } from "../../database/pool.js";
-import { uuidToBuffer, bufferToUuid } from "../../utils/uuid.js";
+import { uuidToBuffer, bufferToUuid } from "../../utils/uuid.utils.js";
 
 export async function getOrCreateConversation(userA, userB) {
     const [user1, user2] = [userA, userB].sort();

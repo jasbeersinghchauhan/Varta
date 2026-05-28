@@ -1,6 +1,5 @@
 import { sendToUser } from "./connections.js";
 import { createCallLog, updateCallStatus, finalizeCallLog } from "../features/calls/calls.service.js";
-import { callbackify } from "node:util";
 
 const activeCalls = new Map();
 

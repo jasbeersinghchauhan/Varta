@@ -1,5 +1,5 @@
 import { pool, query } from "../../database/pool.js";
-import { uuidToBuffer, bufferToUuid } from "../../utils/uuid.js";
+import { uuidToBuffer, bufferToUuid } from "../../utils/uuid.utils.js";
 import crypto from "crypto";
 
 export async function createMessage({
@@ -108,8 +108,8 @@ export async function getMessagesByConversationId(conversationId) {
             edited_at,
             created_at
         FROM messages 
-        WHERE conversation_id = UUID_TO_BIN(?)
-        ORDER BY created_at ASC`, [conversationId]);
+        WHERE conversation_id = ?
+        ORDER BY created_at ASC`, [uuidToBuffer(conversationId)]);
     return rows;
 }
 

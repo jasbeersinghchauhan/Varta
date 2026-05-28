@@ -1,5 +1,3 @@
-import { parse as uuidParse, stringify as uuidStringify } from "uuid";
-
 export function uuidToBuffer(uuid) {
     if (!uuid) return null;
     

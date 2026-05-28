@@ -6,41 +6,38 @@ import {
     generateRefreshToken,
 } from "../../utils/token.utils.js";
 import { sendVerificationEmail, sendPasswordResetEmail } from "./email.service.js";
+import { uuidToBuffer } from "../../utils/uuid.utils.js";
 
 export async function refreshSession(refreshToken) {
     const parts = refreshToken.split(".");
     if (parts.length !== 2) throw new Error("INVALID");
 
     const [tokenId, secret] = parts;
+    const tokenBuffer = uuidToBuffer(tokenId);
 
     const rows = await query(
-        `SELECT BIN_TO_UUID(user_id) AS user_id, token_hash, expires_at FROM refresh_tokens WHERE id = UUID_TO_BIN(?)`,
-        [tokenId],
+        `SELECT BIN_TO_UUID(user_id) AS user_id, token_hash, expires_at FROM refresh_tokens WHERE id = ?`,
+        [tokenBuffer],
     );
     if (rows.length === 0) throw new Error("INVALID");
 
     const row = rows[0];
 
     if (new Date(row.expires_at) < new Date()) {
-        await query(`DELETE FROM refresh_tokens WHERE id = UUID_TO_BIN(?)`, [
-            tokenId,
-        ]);
+        await query(`DELETE FROM refresh_tokens WHERE id = ?`, [tokenBuffer]);
         throw new Error("EXPIRED");
     }
 
     const valid = await bcrypt.compare(secret, row.token_hash);
     if (!valid) {
-        //TOKEN REUSE DETECTED
-        await query(`DELETE FROM refresh_tokens WHERE user_id = UUID_TO_BIN(?)`, [
-            row.user_id,
-        ]);
+        // TOKEN REUSE DETECTED
+        const userBuffer = uuidToBuffer(row.user_id);
+        await query(`DELETE FROM refresh_tokens WHERE user_id = ?`, [userBuffer]);
         throw new Error("TOKEN_REUSE");
     }
 
-    //ROTATE TOKEN
-    await query(`DELETE FROM refresh_tokens WHERE id = UUID_TO_BIN(?)`, [
-        tokenId,
-    ]);
+    // ROTATE TOKEN
+    await query(`DELETE FROM refresh_tokens WHERE id = ?`, [tokenBuffer]);
 
     const accessToken = generateAccessToken(row.user_id);
     const {
@@ -50,8 +47,8 @@ export async function refreshSession(refreshToken) {
     } = await generateRefreshToken(row.user_id);
 
     await query(
-        `INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES(UUID_TO_BIN(?), UUID_TO_BIN(?), ?, DATE_ADD(NOW(), INTERVAL 7 DAYS))`,
-        [newId, row.user_id, tokenHash],
+        `INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES(?, ?, ?, DATE_ADD(NOW(), INTERVAL 7 DAYS))`,
+        [uuidToBuffer(newId), uuidToBuffer(row.user_id), tokenHash],
     );
     return { accessToken, refreshToken: newRefresh };
 }
@@ -116,8 +113,8 @@ export async function loginUser(email, password) {
         );
 
         await query(
-            `INSERT INTO refresh_tokens (id,user_id,token_hash,expires_at) VALUES(UUID_TO_BIN(?),UUID_TO_BIN(?),?, DATE_ADD(NOW(),INTERVAL 7 DAY))`,
-            [tokenId, user.user_id, tokenHash],
+            `INSERT INTO refresh_tokens (id,user_id,token_hash,expires_at) VALUES(?,?,?, DATE_ADD(NOW(),INTERVAL 7 DAY))`,
+            [uuidToBuffer(tokenId), uuidToBuffer(user.user_id), tokenHash],
             connection,
         );
         return { accessToken, refreshToken };
@@ -131,8 +128,8 @@ export async function logoutUser(refreshToken) {
 
     if (!tokenId) return;
 
-    await query(`DELETE FROM refresh_tokens WHERE id = UUID_TO_BIN(?)`, [
-        tokenId,
+    await query(`DELETE FROM refresh_tokens WHERE id = ?`, [
+        uuidToBuffer(tokenId),
     ]);
 }
 
@@ -193,15 +190,15 @@ export async function generatePasswordResetToken(email) {
 
 export async function checkResetTokenIsValid(token) {
     const rows = await query(`SELECT expires_at FROM password_reset WHERE token = ?`, [token]);
-    
+
     if (rows.length === 0) {
         throw new Error("INVALID_TOKEN");
     }
-    
+
     if (new Date(rows[0].expires_at) < new Date()) {
         throw new Error("TOKEN_EXPIRED");
     }
-    
+
     return true;
 }
 

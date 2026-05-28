@@ -1,24 +1,34 @@
 import { query } from "../../database/pool.js";
+import { uuidToBuffer } from "../../utils/uuid.utils.js";
 import crypto from "node:crypto";
 
 export async function createCallLog(callerId, receiverId, callType) {
     const id = crypto.randomUUID();
 
-    await query(`INSERT INTO call_logs (id, caller_id, receiver_id, call_type, call_status) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), ?, 'missed')`, [id, callerId, receiverId, callType]);
+    await query(
+        `INSERT INTO call_logs (id, caller_id, receiver_id, call_type, call_status) VALUES (?, ?, ?, ?, 'missed')`,
+        [uuidToBuffer(id), uuidToBuffer(callerId), uuidToBuffer(receiverId), callType]
+    );
     return id;
 }
 
 export async function updateCallStatus(callId, status) {
-    await query(`UPDATE call_logs SET call_status = ? WHERE id = UUID_TO_BIN(?)`, [status, callId]);
+    await query(
+        `UPDATE call_logs SET call_status = ? WHERE id = ?`,
+        [status, uuidToBuffer(callId)]
+    );
 }
 
 export async function finalizeCallLog(callId, durationSec) {
-    await query(`UPDATE call_logs 
-        SET duration_sec = ?, ended_at = CURRENT_TIMESTAMP 
-        WHERE id = UUID_TO_BIN(?)`, [durationSec, callId]);
+    await query(
+        `UPDATE call_logs SET duration_sec = ?, ended_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [durationSec, uuidToBuffer(callId)]
+    );
 }
 
 export async function getUserCallLogs(userId) {
+    const userBuffer = uuidToBuffer(userId);
+
     const rows = await query(`SELECT BIN_TO_UUID(cl.id) AS id, BIN_TO_UUID(cl.caller_id) as caller_id,
         BIN_TO_UUID(cl.receiver_id) as receiver_id,
         cl.call_type,
@@ -29,10 +39,10 @@ export async function getUserCallLogs(userId) {
         u.username as contact_name,
         u.avatar_url
         FROM call_logs cl
-        JOIN users u ON u.id = IF(cl.caller_id = UUID_TO_BIN(?), cl.receiver_id, cl.caller_id)
-        WHERE cl.caller_id = UUID_TO_BIN(?) OR cl.receiver_id = UUID_TO_BIN(?)
+        JOIN users u ON u.id = IF(cl.caller_id = ?, cl.receiver_id, cl.caller_id)
+        WHERE cl.caller_id = ? OR cl.receiver_id = ?
         ORDER BY cl.started_at DESC
-        LIMIT 50`, [userId, userId, userId]);
+        LIMIT 50`, [userBuffer, userBuffer, userBuffer]);
 
     return rows;
 }
