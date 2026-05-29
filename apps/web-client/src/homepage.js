@@ -88,6 +88,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelector("#rejectCallBtn").addEventListener("click", () => {
         Actions.endCall();
     });
+    document.querySelector("#muteBtn").addEventListener("click", () => Actions.toggleMute());
+    document.querySelector("#cameraBtn").addEventListener("click", () => Actions.toggleVideo());
 
     // Hide Menus on click outside
     document.addEventListener("click", (e) => {

@@ -333,6 +333,26 @@ export const Actions = {
         if (localStream) localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
     },
 
+    toggleMute() {
+        if (localStream) {
+            const audioTrack = localStream.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.enabled = !audioTrack.enabled;
+                document.querySelector("#muteBtn").classList.toggle("active", !audioTrack.enabled);
+            }
+        }
+    },
+
+    toggleVideo() {
+        if (localStream) {
+            const videoTrack = localStream.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.enabled = !videoTrack.enabled;
+                document.querySelector("#cameraBtn").classList.toggle("active", !videoTrack.enabled);
+            }
+        }
+    },
+
     endCall(notifyRemote = true) {
         if (notifyRemote && AppState.call.partnerId && ws) {
             ws.send(JSON.stringify({ type: "webrtc_end_call", to: AppState.call.partnerId }));
@@ -342,6 +362,10 @@ export const Actions = {
 
         iceCandidateQueue = [];
         AppState.call.partnerId = null;
+
+        document.querySelector("#muteBtn").classList.remove("active");
+        document.querySelector("#cameraBtn").classList.remove("active");
+
         this.closeModals();
     }
 };
