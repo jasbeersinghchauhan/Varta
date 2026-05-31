@@ -242,6 +242,14 @@ export const Actions = {
             } else if (data.type === "webrtc_answer") {
                 if (peerConnection) await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
                 while (iceCandidateQueue.length > 0) await peerConnection.addIceCandidate(iceCandidateQueue.shift());
+
+                if (AppState.call.isAudioCall) {
+                    const audioStatus = document.querySelector(".audio-status");
+                    if (audioStatus) audioStatus.textContent = "Ongoing";
+                } else {
+                    const videoStatus = document.querySelector("#videoCallStatus");
+                    if (videoStatus) videoStatus.textContent = "Ongoing";
+                }
             } else if (data.type === "webrtc_ice_candidate") {
                 const candidate = new RTCIceCandidate(data.candidate);
                 if (peerConnection?.remoteDescription) await peerConnection.addIceCandidate(candidate);
@@ -270,7 +278,17 @@ export const Actions = {
         document.querySelector("#videoWrapper").classList.toggle("hidden", isAudioOnly);
         document.querySelector("#audioWrapper").classList.toggle("hidden", !isAudioOnly);
         document.querySelector("#cameraBtn").style.display = isAudioOnly ? "none" : "";
-        document.querySelector("#videoCallStatus").textContent = "Calling...";
+
+        if (isAudioOnly) {
+            document.querySelector(".audio-name").textContent = AppState.activeChat.partner.username;
+            document.querySelector("#audioAvatar").src = AppState.activeChat.partner.avatar_url || "/public/default-avatar.svg";
+            const audioStatus = document.querySelector(".audio-status");
+            if (audioStatus) audioStatus.textContent = "Calling...";
+        } else {
+            const videoStatus = document.querySelector("#videoCallStatus");
+            if (videoStatus) videoStatus.textContent = "Calling...";
+        }
+
         this.openModal('videoCall');
 
         try {
@@ -301,6 +319,17 @@ export const Actions = {
         document.querySelector("#videoWrapper").classList.toggle("hidden", AppState.call.isAudioCall);
         document.querySelector("#audioWrapper").classList.toggle("hidden", !AppState.call.isAudioCall);
         document.querySelector("#cameraBtn").style.display = AppState.call.isAudioCall ? "none" : "";
+
+        if (AppState.call.isAudioCall) {
+            document.querySelector(".audio-name").textContent = data.callerName || 'Someone';
+            document.querySelector("#audioAvatar").src = data.callerAvatar || '/public/default-avatar.svg';
+            const audioStatus = document.querySelector(".audio-status");
+            if (audioStatus) audioStatus.textContent = "Ongoing";
+        } else {
+            const videoStatus = document.querySelector("#videoCallStatus");
+            if (videoStatus) videoStatus.textContent = "Ongoing";
+        }
+
         this.openModal('videoCall');
 
         try {
